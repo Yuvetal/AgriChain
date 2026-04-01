@@ -52,7 +52,8 @@ export default function Dashboard() {
 
   const checkBankStatus = async () => {
     try {
-      const res = await fetch("http://localhost:5000/api/ping");
+      const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
+      const res = await fetch(`${API_URL}/api/ping`);
       if (res.ok) setIsBankOnline(true);
       else setIsBankOnline(false);
     } catch (e) {
@@ -139,7 +140,8 @@ export default function Dashboard() {
     const phone = localStorage.getItem("farmer_session_phone");
     if (!phone) return;
     try {
-      const res = await fetch(`http://localhost:5000/api/bank/balance/${phone}`);
+      const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
+      const res = await fetch(`${API_URL}/api/bank/balance/${phone}`);
       if (res.ok) {
         const data = await res.json();
         setBankAccount(data);
@@ -225,7 +227,8 @@ export default function Dashboard() {
 
       // Phase 2: Update Imaginary Bank Ledger
       const phone = localStorage.getItem("farmer_session_phone");
-      const res = await fetch("http://localhost:5000/api/bank/withdraw", {
+      const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
+      const res = await fetch(`${API_URL}/api/bank/withdraw`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -262,7 +265,8 @@ export default function Dashboard() {
     setUserMsg("⏳ Agri-Gas ATM: Routing INR payout to decentralized gas node...");
 
     try {
-      const res = await fetch("http://localhost:5000/api/bank/buy-gas", {
+      const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
+      const res = await fetch(`${API_URL}/api/bank/buy-gas`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -371,9 +375,9 @@ export default function Dashboard() {
       try {
         setUserMsg(`⏳ Uploading video to decentralized storage (IPFS)...`);
         const formData = new FormData();
-        formData.append('file', file);
-        
-        const res = await fetch('http://localhost:5000/api/ipfs/upload', {
+        formData.append("file", file);
+        const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
+        const res = await fetch(`${API_URL}/api/ipfs/upload`, {
           method: 'POST',
           body: formData
         });
@@ -464,7 +468,8 @@ export default function Dashboard() {
       formData.append("file", file);
 
       try {
-        const res = await fetch("http://localhost:5000/api/ipfs/upload", {
+        const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
+        const res = await fetch(`${API_URL}/api/ipfs/upload`, {
           method: "POST",
           body: formData
         });
@@ -567,13 +572,11 @@ export default function Dashboard() {
 
         try {
           setUserMsg(`🚨 Uploading discrepancy evidence to IPFS...`);
-          const formData = new FormData();
-          formData.append('file', file);
-          
-          const res = await fetch('http://localhost:5000/api/ipfs/upload', {
-            method: 'POST',
-            body: formData
-          });
+        const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
+        const res = await fetch(`${API_URL}/api/ipfs/upload`, {
+          method: 'POST',
+          body: formData
+        });
           const data = await res.json();
           if (!res.ok || !data.ipfs_hash) throw new Error(data.error || "IPFS pin failed.");
           

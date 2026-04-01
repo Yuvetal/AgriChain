@@ -182,7 +182,8 @@ const AddTransaction = () => {
     setIsProcessing(true);
     setMessage("⏳ Requesting Secure OTP via Twilio...");
 
-    fetch("http://localhost:5000/api/otp/send", {
+    const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
+    fetch(`${API_URL}/api/otp/send`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ phone: phoneNumber }),
@@ -218,7 +219,8 @@ const AddTransaction = () => {
 
     try {
       // Phase 1: Cryptographic Verification via Backend
-      const verifyRes = await fetch("http://localhost:5000/api/otp/verify", {
+      const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
+      const verifyRes = await fetch(`${API_URL}/api/otp/verify`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phone: phoneNumber, code: userOtp }),

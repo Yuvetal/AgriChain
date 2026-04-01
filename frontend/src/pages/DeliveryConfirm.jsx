@@ -172,7 +172,8 @@ export default function DeliveryConfirm() {
           const formData = new FormData();
           formData.append('file', file);
           
-          const res = await fetch('http://localhost:5000/api/ipfs/upload', {
+      const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
+      const res = await fetch(`${API_URL}/api/ipfs/upload`, {
             method: 'POST',
             body: formData
           });
