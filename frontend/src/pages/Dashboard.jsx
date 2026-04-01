@@ -303,13 +303,23 @@ export default function Dashboard() {
     }
 
     try {
-      setUserMsg(`⏳ Minting a ${requestedQty}kg Contract for Batch #${batchId}... Please approve the payment in MetaMask.`);
-      const { contract } = await getContract();
+      setUserMsg(`⏳ Minting a ${requestedQty}kg Contract for Batch #${batchId}...`);
+      const { contract, signer, provider } = await getContract();
       
       // Calculate fraction safely utilizing BigInt
       const rawBN = window.BigInt(rawPricePerKgWei);
       const reqBN = window.BigInt(requestedQty);
       const exactCostWei = (rawBN * reqBN).toString();
+
+      // PROACTIVE BALANCE CHECK:
+      const userBalance = await provider.getBalance(await signer.getAddress());
+      const gasBuffer = ethers.parseEther("0.005");
+      const totalNeeded = window.BigInt(exactCostWei) + gasBuffer;
+      
+      if (userBalance < totalNeeded) {
+        setUserMsg(`❌ Not enough funds. You need ${ethers.formatEther(totalNeeded).slice(0,6)} ETH (Cost + Gas).`);
+        return;
+      }
 
       const tx = await contract.purchasePartialBatch(batchId, requestedQty, { value: exactCostWei });
       await tx.wait();
@@ -559,6 +569,16 @@ export default function Dashboard() {
       );
       if (!ok) return;
 
+      // PROACTIVE BALANCE CHECK:
+      const userBalance = await contract.getProvider().getBalance(await contract.runner.getAddress());
+      const gasBuffer = ethers.parseEther("0.005");
+      const totalNeeded = bondWei + gasBuffer;
+      
+      if (userBalance < totalNeeded) {
+        setUserMsg(`❌ Not enough funds for bond. You need ${ethers.formatEther(totalNeeded).slice(0,6)} ETH (Bond + Gas).`);
+        return;
+      }
+
       const input = document.createElement('input');
       input.type = 'file';
       input.accept = 'video/mp4,video/webm,video/ogg,video/quicktime';
@@ -709,7 +729,7 @@ export default function Dashboard() {
           <p className="dashboard-subtitle">Direct peer-to-peer agricultural lineage tracking</p>
         </div>
         <div className="header-actions">
-            {!isFarmerAuth && account && (
+            {!isFarmerAuth && account.toLowerCase() === "0x7efdedfff04454575a78aee13effe9155eb86e8e" && (
                <button onClick={handleFundFarmer} className="sponsor-btn">
                  <span className="btn-icon">⛽</span> Sponsor Setup
                </button>

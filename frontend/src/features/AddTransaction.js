@@ -248,6 +248,17 @@ const AddTransaction = () => {
       const stakeEth = Math.max(0.01, totalEthValue * 0.05);
       const stakeWei = ethers.parseEther(stakeEth.toFixed(18));
 
+      // PROACTIVE BALANCE CHECK: 
+      const userBalance = await signer.getProvider().getBalance(await signer.getAddress());
+      const gasBuffer = ethers.parseEther("0.005"); // Minimum gas reserve
+      const totalNeeded = isSponsored ? gasBuffer : stakeWei + gasBuffer;
+      
+      if (userBalance < totalNeeded) {
+        setMessage(`❌ Not enough funds in your Vault. You need at least ${ethers.formatEther(totalNeeded).slice(0,6)} ETH (Stake + Gas).`);
+        setIsProcessing(false);
+        return;
+      }
+
       let tx;
       if (!selectedParentHash) {
         const addr = await signer.getAddress();
