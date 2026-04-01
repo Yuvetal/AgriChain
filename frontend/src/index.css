@@ -1,17 +1,24 @@
 :root {
-  /* Modern Earth Palette */
+  /* Elite Earth Palette */
   --primary: #059669; /* Emerald 600 */
   --primary-dark: #064e3b; /* Emerald 900 */
   --accent: #10b981; /* Emerald 500 */
   --bg: #f8fafc; /* Slate 50 */
+  --bg-dark: #0f172a; /* Slate 900 */
   --text-main: #0f172a; /* Slate 900 */
   --text-muted: #475569; /* Slate 600 */
   --white: #ffffff;
+  
+  /* Glassmorphism Hub */
   --glass: rgba(255, 255, 255, 0.7);
+  --glass-dark: rgba(15, 23, 42, 0.8);
   --glass-border: rgba(255, 255, 255, 0.3);
+  --glass-border-dark: rgba(0, 0, 0, 0.1);
   --shadow-soft: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+  --shadow-elite: 0 20px 50px rgba(0, 0, 0, 0.1);
+  
   --radius: 16px;
-  --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 body {
