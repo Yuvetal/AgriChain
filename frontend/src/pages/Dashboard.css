@@ -1,0 +1,780 @@
+.dashboard-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 40px 20px;
+}
+
+/* Header */
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 40px;
+}
+
+.dashboard-title {
+  font-size: 2.2rem;
+  color: var(--text-main);
+  margin-bottom: 8px;
+}
+
+.icon-wrap {
+  margin-right: 12px;
+}
+
+.dashboard-subtitle {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.header-actions {
+  display: flex;
+  gap: 16px;
+}
+
+.sponsor-btn {
+  background: var(--white);
+  border: 1px solid #e2e8f0;
+  padding: 12px 24px;
+  border-radius: 12px;
+  font-weight: 700;
+  color: #64748b;
+  box-shadow: var(--shadow-soft);
+  transition: var(--transition);
+}
+
+.sponsor-btn:hover {
+  background: #f8fafc;
+  color: var(--primary);
+  border-color: var(--primary);
+}
+
+.harvest-btn {
+  padding: 12px 28px;
+}
+
+/* Farmer Status */
+.farmer-status-card {
+  display: flex;
+  background: var(--primary-dark);
+  color: white;
+  padding: 24px 32px;
+  border-radius: 20px;
+  margin-bottom: 40px;
+  align-items: center;
+  box-shadow: 0 20px 40px rgba(6, 78, 59, 0.2);
+}
+
+.status-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.status-divider {
+  width: 1px;
+  height: 40px;
+  background: rgba(255,255,255,0.1);
+  margin: 0 40px;
+}
+
+.status-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.7;
+  font-weight: 700;
+}
+
+.status-value {
+  font-family: monospace;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.currency-unit {
+  font-size: 0.8rem;
+  opacity: 0.6;
+}
+
+.gas-warning {
+  margin-left: 12px;
+  background: #ef4444;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 0.7rem;
+  font-family: inherit;
+}
+
+/* Notifications */
+.status-notification {
+  padding: 16px 24px;
+  border-radius: 12px;
+  margin-bottom: 30px;
+  font-weight: 600;
+}
+
+.status-notification.success { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
+.status-notification.error { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+
+/* Filter Center */
+.filter-command-center {
+  display: flex;
+  gap: 32px;
+  background: var(--white);
+  padding: 24px 40px;
+  border-radius: 24px;
+  margin-bottom: 40px;
+  box-shadow: var(--shadow-soft);
+  align-items: center;
+  border: 1px solid #f1f5f9;
+}
+
+.input-group {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+
+.input-icon {
+  position: absolute;
+  left: 22px;
+  font-size: 1.2rem;
+  opacity: 0.7;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.input-group input {
+  width: 100%;
+  padding: 16px 20px 16px 64px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 14px;
+  font-weight: 600;
+  outline: none;
+  font-size: 1rem;
+  transition: all 0.2s;
+  box-sizing: border-box;
+}
+
+.input-group input:focus { 
+  border-color: var(--primary); 
+  box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.1); 
+  background: #fdfdfd;
+}
+
+.toggle-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  white-space: nowrap;
+  padding-left: 32px;
+  border-left: 2px solid #f1f5f9;
+  cursor: pointer;
+  height: 40px;
+}
+
+.toggle-label { font-weight: 700; color: var(--text-main); font-size: 0.95rem; }
+
+/* Loader */
+.blockchain-loader {
+  text-align: center;
+  padding: 80px 0;
+  color: var(--text-muted);
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #e2e8f0;
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  margin: 0 auto 20px;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Produce Grid */
+.produce-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 24px;
+}
+
+.produce-card {
+  background: var(--white);
+  border-radius: 24px;
+  padding: 28px;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #f1f5f9;
+  box-shadow: var(--shadow-soft);
+  transition: var(--transition);
+}
+
+.produce-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 20px 30px rgba(0,0,0,0.06);
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.traceability-tag {
+  background: #f1f5f9;
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-family: monospace;
+  font-weight: 700;
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+.status-badge {
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  padding: 4px 12px;
+  border-radius: 20px;
+}
+
+.status-created .status-badge { background: #dcfce7; color: #166534; }
+.status-sold .status-badge { background: #fef9c3; color: #854d0e; }
+.status-delivered .status-badge { background: #dbeafe; color: #1e40af; }
+.status-refunded .status-badge { background: #fef2f2; color: #991b1b; }
+.status-spoilt .status-badge { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+
+.produce-name {
+  font-size: 1.5rem;
+  margin-bottom: 20px;
+  color: var(--text-main);
+}
+
+.data-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.data-label { color: var(--text-muted); font-size: 0.9rem; font-weight: 500; }
+.data-value { font-weight: 700; color: var(--text-main); }
+
+.data-row.highlight {
+  background: #f8fafc;
+  padding: 10px 14px;
+  border-radius: 12px;
+  margin: 16px -14px;
+}
+
+.in-stock { color: var(--primary); }
+.out-of-stock { color: #ef4444; }
+
+.price-tag {
+  margin-top: auto;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.fiat-price { font-size: 1.8rem; font-weight: 800; color: var(--text-main); }
+.eth-price { font-size: 0.9rem; color: var(--text-muted); font-weight: 600; }
+
+/* Execution Dock */
+.execution-dock {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.purchase-intent-block { display: flex; flex-direction: column; gap: 12px; }
+.input-action-row { display: flex; gap: 12px; }
+
+.qty-input {
+  width: 80px;
+  padding: 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  text-align: center;
+  font-weight: 700;
+}
+
+.buy-btn {
+  flex: 1;
+  background: var(--text-main);
+  color: white;
+  border: none;
+  padding: 12px;
+  border-radius: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.buy-btn:hover { background: #1e293b; }
+
+.estimate-text {
+  text-align: right;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.gas-warning { color: #f59e0b; font-size: 0.7rem; display: block; font-weight: 700; margin-top: 2px; }
+
+.gas-status-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.top-up-btn {
+  background: #2563eb;
+  color: white;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 99px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.2);
+}
+
+.top-up-btn:hover {
+  background: #1d4ed8;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 8px -1px rgba(37, 99, 235, 0.3);
+}
+
+/* FINANCE HUB STYLES */
+.finance-hub-container {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  gap: 24px;
+  margin-bottom: 40px;
+}
+
+.finance-card {
+  background: white;
+  border-radius: 20px;
+  padding: 24px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  display: flex;
+  flex-direction: column;
+}
+
+.card-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.finance-title {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #1e293b;
+  margin: 0;
+}
+
+.bank-badge.online {
+  background: #ecfdf5;
+  color: #059669;
+}
+
+.bank-badge.offline {
+  background: #fef2f2;
+  color: #dc2626;
+  animation: pulse-red 2s infinite;
+}
+
+@keyframes pulse-red {
+  0% { opacity: 1; }
+  50% { opacity: 0.5; }
+  100% { opacity: 1; }
+}
+
+.bank-status-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sync-btn {
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+}
+
+.sync-btn:hover {
+  background: #e2e8f0;
+  transform: rotate(180deg);
+}
+
+.bank-offline-msg {
+  font-size: 0.7rem;
+  color: #ef4444;
+  font-weight: 700;
+  margin-top: -4px;
+  margin-bottom: 8px;
+}
+
+.fiat-balance-display {
+  background: #f8fafc;
+  padding: 20px;
+  border-radius: 16px;
+  margin-bottom: 24px;
+  text-align: center;
+}
+
+.fiat-label {
+  display: block;
+  font-size: 0.75rem;
+  color: #64748b;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.fiat-value {
+  font-size: 2rem;
+  font-weight: 900;
+  color: #0f172a;
+}
+
+.withdrawal-interaction label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #475569;
+  margin-bottom: 8px;
+}
+
+.withdrawal-input-row {
+  display: flex;
+  align-items: center;
+  background: white;
+  border: 2px solid #e2e8f0;
+  border-radius: 12px;
+  overflow: hidden;
+  transition: border-color 0.2s;
+}
+
+.withdrawal-input-row:focus-within {
+  border-color: #3b82f6;
+}
+
+.input-prefix {
+  padding-left: 16px;
+  color: #64748b;
+  font-weight: 700;
+}
+
+.withdrawal-input-row input {
+  flex: 1;
+  border: none;
+  padding: 12px 8px;
+  outline: none;
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+.withdraw-btn {
+  background: #2563eb;
+  color: white;
+  border: none;
+  padding: 12px 20px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.withdraw-btn:hover { background: #1d4ed8; }
+.withdraw-btn:disabled { background: #94a3b8; cursor: not-allowed; }
+
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.history-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  background: #f1f5f9;
+  border-radius: 12px;
+}
+
+.tx-main {
+  display: flex;
+  flex-direction: column;
+}
+
+.tx-type {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.tx-date {
+  font-size: 0.65rem;
+  color: #64748b;
+}
+
+.tx-amount.credit {
+  color: #10b981;
+  font-weight: 800;
+  font-size: 0.9rem;
+}
+
+.empty-history {
+  font-size: 0.8rem;
+  color: #94a3b8;
+  text-align: center;
+  margin-top: 40px;
+}
+
+/* RESPONSIVE FINANCE HUB */
+@media (max-width: 900px) {
+  .finance-hub-container {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ownership-block {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.owner-label {
+  text-align: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.unlist-btn {
+  background: #fff;
+  border: 1.5px dashed #f97316;
+  color: #f97316;
+  padding: 10px;
+  border-radius: 10px;
+  font-weight: 700;
+}
+
+.buyer-action-block { display: flex; flex-direction: column; gap: 10px; }
+
+.confirm-btn {
+  background: var(--primary);
+  color: white;
+  border: none;
+  padding: 12px;
+  border-radius: 10px;
+  font-weight: 700;
+}
+
+.refund-btn {
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+  padding: 12px;
+  border-radius: 10px;
+  font-weight: 700;
+}
+
+.resell-btn {
+  width: 100%;
+  background: #f97316;
+  color: white;
+  border: none;
+  padding: 12px;
+  border-radius: 10px;
+  font-weight: 700;
+}
+
+.full-width { width: 100%; }
+.farmer-action-block { display: flex; flex-direction: column; gap: 10px; }
+
+.spoilt-btn {
+  background: white;
+  border: 1.5px solid #ef4444;
+  color: #ef4444;
+  padding: 12px;
+  border-radius: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.spoilt-btn:hover {
+  background: #fef2f2;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.1);
+}
+
+/* ── V2 Protocol State Components ──────────────────────────────────── */
+
+/* Expiry Countdown Badge */
+.expiry-badge {
+  display: inline-block;
+  background: rgba(251, 191, 36, 0.1);
+  border: 1px solid rgba(251, 191, 36, 0.3);
+  color: #d97706;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 20px;
+  margin-bottom: 8px;
+}
+.expiry-badge.expired {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #dc2626;
+}
+
+/* IPFS Evidence Link */
+.evidence-link {
+  display: block;
+  font-size: 0.8rem;
+  color: #6366f1;
+  font-weight: 700;
+  text-decoration: none;
+  margin-bottom: 10px;
+}
+.evidence-link:hover { text-decoration: underline; }
+
+/* Farmer Dispatch Block */
+.farmer-dispatch-block { display: flex; flex-direction: column; gap: 8px; }
+.step-label { font-size: 0.78rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.04em; margin: 0; }
+.step-done { font-size: 0.85rem; color: #16a34a; font-weight: 700; }
+
+.tracking-input {
+  flex: 1;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.tracking-input:focus { border-color: #6366f1; }
+
+.upload-btn {
+  background: #eef2ff;
+  border: 1.5px solid #6366f1;
+  color: #4f46e5;
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  font-size: 0.88rem;
+  transition: all 0.2s;
+}
+.upload-btn:hover { background: #e0e7ff; }
+
+.dispatch-btn {
+  background: #4f46e5;
+  color: white;
+  border: none;
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+.dispatch-btn:hover:not(:disabled) { background: #4338ca; }
+.dispatch-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Buyer Dispatched Block */
+.delivery-confirm-block { display: flex; flex-direction: column; gap: 10px; }
+.tracking-info { font-size: 0.85rem; color: #475569; margin: 0; }
+.partial-row { display: flex; gap: 8px; align-items: center; }
+
+.partial-btn {
+  background: #f97316;
+  color: white;
+  border: none;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+.partial-btn:hover:not(:disabled) { background: #ea580c; }
+.partial-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Buyer awaiting label */
+.awaiting-label { font-size: 0.88rem; color: #64748b; margin: 0 0 6px; font-weight: 600; }
+
+/* Farmer waiting block */
+.farmer-waiting-block { display: flex; flex-direction: column; gap: 8px; }
+.waiting-note { font-size: 0.8rem; color: #94a3b8; margin: 0; }
+
+.abandon-btn {
+  background: #fef3c7;
+  border: 1.5px solid #d97706;
+  color: #92400e;
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.abandon-btn:hover { background: #fde68a; }
+
+/* Disputed Block */
+.disputed-block {
+  background: rgba(99, 102, 241, 0.06);
+  border: 1.5px solid rgba(99, 102, 241, 0.2);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+.disputed-block p { font-size: 0.8rem; color: #64748b; margin: 4px 0 0; }
+.disputed-label { font-size: 0.88rem; font-weight: 800; color: #4f46e5; }
+
+/* Verdict Blocks */
+.verdict-block {
+  border-radius: 10px;
+  padding: 12px 16px;
+  font-weight: 800;
+  font-size: 0.9rem;
+  text-align: center;
+}
+.verdict-block.farmer-win { background: #dcfce7; color: #16a34a; border: 1.5px solid #16a34a; }
+.verdict-block.buyer-win { background: #dbeafe; color: #2563eb; border: 1.5px solid #2563eb; }
+
+/* Terminal State Label */
+.terminal-label {
+  display: block;
+  text-align: center;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #94a3b8;
+  padding: 8px;
+  border: 1px dashed #e2e8f0;
+  border-radius: 8px;
+}
+
+/* AddTransaction field hint */
+.field-hint { font-size: 0.75rem; font-weight: 400; color: #94a3b8; margin-left: 6px; }

@@ -1,0 +1,36 @@
+.viewer-container {
+  max-width: 900px;
+  margin: 40px auto;
+  padding: 20px;
+}
+
+.viewer-title {
+  text-align: center;
+  font-size: 2rem;
+  color: #2e7d32;
+  margin-bottom: 30px;
+}
+
+.block-card {
+  background-color: #ffffff;
+  border: 1px solid #c8e6c9;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  transition: transform 0.2s ease;
+}
+
+.block-card:hover {
+  transform: scale(1.01);
+}
+
+.block-card p {
+  margin: 8px 0;
+  font-size: 1rem;
+  color: #333;
+}
+
+.block-card strong {
+  color: #2e7d32;
+}

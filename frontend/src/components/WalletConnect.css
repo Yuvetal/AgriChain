@@ -1,0 +1,92 @@
+.wallet-connect-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.connect-wallet-btn {
+  background: linear-gradient(135deg, #f6851b 0%, #e2761b 100%);
+  color: white;
+  padding: 14px 28px;
+  border-radius: 12px;
+  border: none;
+  font-weight: 700;
+  font-size: 1rem;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(246, 133, 27, 0.2);
+  transition: var(--transition);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.connect-wallet-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(246, 133, 27, 0.3);
+}
+
+.connect-wallet-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.wallet-connected-pill {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #ecfdf5;
+  padding: 10px 20px;
+  border-radius: 99px;
+  border: 1px solid #d1fae5;
+  color: #065f46;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.wallet-addr {
+  font-family: monospace;
+}
+
+.metamask-prompt-card {
+  background: #fff7ed;
+  border: 1.5px dashed #fb923c;
+  padding: 24px;
+  border-radius: 20px;
+  text-align: center;
+}
+
+.prompt-title {
+  color: #c2410c;
+  margin-bottom: 8px;
+  font-size: 1.1rem;
+}
+
+.prompt-desc {
+  font-size: 0.85rem;
+  color: #9a3412;
+  margin-bottom: 20px;
+  line-height: 1.5;
+}
+
+.download-link-btn {
+  display: inline-block;
+  background: #f97316;
+  color: white;
+  padding: 10px 20px;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  text-decoration: none;
+}
+
+.wallet-error-msg {
+  background: #fef2f2;
+  color: #b91c1c;
+  padding: 12px;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-align: center;
+}

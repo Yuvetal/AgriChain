@@ -1,0 +1,98 @@
+/* src/components/TutorialModal.css */
+.tutorial-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(15, 23, 42, 0.85); /* Slate 900 */
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.tutorial-card {
+  background: #ffffff;
+  width: 90%;
+  max-width: 500px;
+  border-radius: 16px;
+  padding: 32px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideUp {
+  0% { transform: translateY(40px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
+.tutorial-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.tutorial-icon {
+  font-size: 2.5rem;
+}
+
+.tutorial-title {
+  margin: 0;
+  font-size: 1.4rem;
+  color: #0f172a;
+  font-weight: 800;
+}
+
+.tutorial-body {
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: #475569;
+}
+.tutorial-body strong { color: #0f172a; }
+
+.tutorial-footer {
+  border-top: 1px dashed #e2e8f0;
+  padding-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.tutorial-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: #64748b;
+  cursor: pointer;
+}
+
+.tutorial-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.tutorial-btn {
+  flex: 1;
+  padding: 12px;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 0.95rem;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.cancel-btn {
+  background: #f1f5f9;
+  color: #475569;
+}
+.cancel-btn:hover { background: #e2e8f0; }
+
+.confirm-btn {
+  background: #4f46e5;
+  color: #ffffff;
+}
+.confirm-btn:hover { background: #4338ca; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3); }

@@ -1,0 +1,217 @@
+/* ================================================================
+   DELIVERY HANDSHAKE — Consumer Scan View
+   ================================================================ */
+
+.delivery-container {
+  min-height: 100vh;
+  background: #f8fafc;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+  font-family: 'Inter', sans-serif;
+}
+
+.delivery-card {
+  background: white;
+  max-width: 460px;
+  width: 100%;
+  border-radius: 20px;
+  padding: 32px;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.delivery-loading {
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #4f46e5;
+  background: #f8fafc;
+}
+
+.error-card {
+  text-align: center;
+}
+
+.error-card h2 { color: #dc2626; margin: 0 0 10px; }
+.error-card p { color: #64748b; margin: 0 0 20px; }
+
+.back-btn {
+  background: #f1f5f9;
+  color: #475569;
+  border: none;
+  padding: 12px 20px;
+  border-radius: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.back-btn:hover { background: #e2e8f0; }
+
+.delivery-header {
+  text-align: center;
+}
+.truck-icon {
+  font-size: 3.5rem;
+  display: block;
+  margin-bottom: 12px;
+}
+.delivery-header h1 {
+  font-size: 1.4rem;
+  font-weight: 800;
+  margin: 0 0 6px;
+  color: #0f172a;
+  letter-spacing: -0.5px;
+}
+.batch-subtitle {
+  font-size: 0.85rem;
+  color: #64748b;
+  font-family: monospace;
+  background: #f1f5f9;
+  padding: 4px 10px;
+  border-radius: 6px;
+  display: inline-block;
+  margin: 0;
+}
+
+.batch-details {
+  display: flex;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px;
+  gap: 20px;
+}
+.detail-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.detail-item span {
+  font-size: 0.75rem;
+  color: #64748b;
+  text-transform: uppercase;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.detail-item strong {
+  font-size: 1.1rem;
+  color: #0f172a;
+}
+
+.unauthorized-overlay {
+  background: rgba(239, 68, 68, 0.05);
+  border: 1px dashed rgba(239, 68, 68, 0.3);
+  padding: 16px;
+  border-radius: 12px;
+  text-align: center;
+}
+.unauthorized-overlay code { font-weight: 700; color: #dc2626; }
+
+.handshake-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.action-btn {
+  width: 100%;
+  padding: 14px;
+  border-radius: 12px;
+  font-weight: 800;
+  font-size: 1rem;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.success-btn {
+  background: #22c55e;
+  color: white;
+  box-shadow: 0 8px 20px rgba(34, 197, 94, 0.2);
+}
+.success-btn:hover:not(:disabled) { background: #16a34a; transform: translateY(-2px); box-shadow: 0 12px 24px rgba(34, 197, 94, 0.3); }
+
+.dispute-btn {
+  background: white;
+  border: 2px solid #ef4444;
+  color: #ef4444;
+}
+.dispute-btn:hover:not(:disabled) { background: #fef2f2; }
+
+.cancel-btn {
+  background: #f1f5f9;
+  color: #475569;
+}
+.cancel-btn:hover:not(:disabled) { background: #e2e8f0; }
+
+.action-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
+.divider {
+  text-align: center;
+  position: relative;
+  z-index: 1;
+}
+.divider::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  border-top: 1px dashed #cbd5e1;
+  z-index: -1;
+}
+.divider span {
+  background: white;
+  padding: 0 10px;
+  color: #94a3b8;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.otp-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.otp-container input {
+  text-align: center;
+  font-size: 1.4rem;
+  letter-spacing: 0.2em;
+  padding: 16px;
+  border: 2px solid #e2e8f0;
+  border-radius: 12px;
+  font-weight: 800;
+  outline: none;
+  color: #0f172a;
+}
+.otp-container input:focus { border-color: #4f46e5; }
+
+.delivery-msg {
+  padding: 12px;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-align: center;
+}
+.delivery-msg.success { background: #dcfce7; color: #16a34a; border: 1px solid #bbf7d0; }
+.delivery-msg.error { background: #fee2e2; color: #dc2626; border: 1px solid #fecaca; }
+
+.dispute-modal-inline {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  padding: 20px;
+  border-radius: 12px;
+}
+.dispute-modal-inline h3 { color: #dc2626; margin: 0 0 8px; font-size: 1.1rem; }
+.dispute-modal-inline p { font-size: 0.85rem; color: #7f1d1d; margin: 0 0 16px; line-height: 1.5; }

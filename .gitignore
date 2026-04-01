@@ -1,0 +1,24 @@
+# Dependencies
+**/node_modules/
+**/venv/
+**/__pycache__/
+
+# Secrets & Environment
+**/.env
+**/.env.local
+**/.env.production.local
+**/.env.development.local
+
+# Hardhat / Blockchain
+**/artifacts/
+**/cache/
+**/typechain-types/
+
+# Build
+**/build/
+**/dist/
+
+# Logs & Misc
+*.log
+.DS_Store
+.vscode/
