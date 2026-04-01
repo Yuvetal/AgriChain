@@ -1,6 +1,5 @@
 import React from "react";
-import "./Home.css";
-import farmImage from "../assets/homepage.jpg";
+import farmImage from "../assets/agrochainmart_hero_v2.png";
 
 export default function Home() {
   return (

@@ -88,3 +88,29 @@
   color: #dc2626;
   text-decoration: underline;
 }
+
+.nav-help-btn {
+  background: var(--primary-dark);
+  color: #fff;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 4px 10px rgba(6, 78, 59, 0.2);
+  transition: var(--transition);
+}
+
+.nav-help-btn:hover {
+  background: var(--primary);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 15px rgba(16, 185, 129, 0.2);
+}
+
+.nav-help-btn:active {
+  transform: translateY(0);
+}
+

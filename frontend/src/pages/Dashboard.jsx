@@ -969,6 +969,11 @@ export default function Dashboard() {
                   {/* ── SOLD: Farmer actions ── */}
                   {batch.status === "Sold" && batch.farmer === account && (
                     <div className="farmer-dispatch-block">
+                      <div className="action-header">
+                        <h3>📦 Finalize Batch</h3>
+                        <button className="help-icon-btn" onClick={() => handleUploadPackingVideo(null)}>❓</button>
+                      </div>
+                      <p className="action-desc">Upload the <strong>Pre-Packing Video</strong> to IPFS. This hash is then locked into the smart contract for dispute resolution.</p>
                       <p className="step-label">Step 1 — Secure Evidence</p>
                       {batch.video1Hash && batch.video1Hash !== ethers.ZeroHash ? (
                         <span className="step-done">✅ Packing Video Secured On-Chain</span>
