@@ -1,10 +1,13 @@
 import React from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { logoutFarmer } from "../utils/LocalWallet";
+import ProtocolGuideModal from "./ProtocolGuideModal";
 import "./Navbar.css";
 
 export default function Navbar({ account }) {
   const navigate = useNavigate();
+
+  const [showGuide, setShowGuide] = React.useState(false);
 
   const handleDisconnect = () => {
     // 1. Terminate the Farmer Session (Web2.5)
@@ -22,6 +25,13 @@ export default function Navbar({ account }) {
         <span className="logo-icon">🌾</span> AgroChainMart
       </Link>
       <div className="navbar-links">
+        <button 
+          className="nav-help-btn" 
+          onClick={() => setShowGuide(true)}
+          title="Protocol Guide"
+        >
+          ❔ Help
+        </button>
         <Link to="/" className="nav-link">Home</Link>
         <Link to="/view-blockchain" className="nav-link">Explorer</Link>
         
@@ -45,6 +55,8 @@ export default function Navbar({ account }) {
           </Link>
         )}
       </div>
+
+      {showGuide && <ProtocolGuideModal onClose={() => setShowGuide(false)} />}
     </nav>
   );
 }

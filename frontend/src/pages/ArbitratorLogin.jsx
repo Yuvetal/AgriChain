@@ -18,6 +18,7 @@ export default function ArbitratorLogin({ setArbitratorAccount }) {
   const [showOtpInput, setShowOtpInput] = useState(false);
   const [recoveryOtp, setRecoveryOtp] = useState("");
   const [statusMsg, setStatusMsg] = useState("");
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   // ── MetaMask Auth ─────────────────────────────────────────────────
   const handleMetaMaskLogin = async () => {
@@ -164,10 +165,23 @@ export default function ArbitratorLogin({ setArbitratorAccount }) {
             <button
               className="arb-connect-btn"
               onClick={handleMetaMaskLogin}
-              disabled={isLoading}
+              disabled={isLoading || !acceptedTerms}
             >
               {isLoading ? "Verifying on-chain..." : "🦊 Connect MetaMask"}
             </button>
+            
+            {/* MetaMask Terms Acceptance */}
+            <div className="arb-terms-wrapper">
+               <label className="arb-terms-checkbox">
+                  <input 
+                     type="checkbox" 
+                     required 
+                     checked={acceptedTerms}
+                     onChange={(e) => setAcceptedTerms(e.target.checked)}
+                  />
+                  <span>I am a certified APMC Arbitrator and accept the Code of Conduct.</span>
+               </label>
+            </div>
           </div>
         )}
 
@@ -195,10 +209,30 @@ export default function ArbitratorLogin({ setArbitratorAccount }) {
                 onChange={(e) => setPin(e.target.value)}
               />
             </div>
+
+            <div className="arb-terms-scroll-section">
+               <h4 className="arb-terms-title">⚖️ Arbitrator's Code of Conduct</h4>
+               <div className="arb-terms-scroll">
+                  <p><b>1. Evidence Neutrality:</b> Arbitrators must vote strictly on the IPFS video evidence provided by the Farmer and Buyer. External bias or collusion is a violation of the protocol.</p>
+                  <p><b>2. Bond Forfeiture:</b> Recruitment into a pool requires a 0.01 ETH Bond (Self-funded or Pool-sponsored). If you fail to vote before the block expiry, your bond is permanently forfeited to the protocol treasury.</p>
+                  <p><b>3. Consensus Recognition:</b> You agree that a 3/5 majority is the final legal determination. All future smart contract payouts are bound by this consensus.</p>
+                  <p><b>4. Recruitment Liquidity:</b> In cases of stalled pools, you acknowledge that an Admin tie-breaker may be engaged to maintain supply chain liquidity.</p>
+               </div>
+               <label className="arb-terms-checkbox-inline">
+                  <input 
+                     type="checkbox" 
+                     required 
+                     checked={acceptedTerms}
+                     onChange={(e) => setAcceptedTerms(e.target.checked)}
+                  />
+                  <span>Accept the Judicial Protocol</span>
+               </label>
+            </div>
+
             <button
               className="arb-connect-btn"
               type="submit"
-              disabled={isLoading}
+              disabled={isLoading || !acceptedTerms}
             >
               {isLoading ? "Verifying..." : "🔐 Access Portal"}
             </button>

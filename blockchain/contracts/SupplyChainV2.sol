@@ -5,7 +5,8 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
 
 /**
- * @title SupplyChainV2 - AgriChain Trust Protocol
+ * @title SupplyChainV2 - AgroChainMart Protocol
+ * @dev Universal Agricultural Marketplace with Fractional Escrow, IPFS Evidence Pining, and Hybrid Consensus Arbitration.
  * @notice Full chain-of-custody protocol for agricultural supply chain.
  * @dev Implements: two-video IPFS evidence, QR+OTP delivery, 5-member blind arbitration,
  *      proportional stake/bond penalties, partial escrow release, and expiry-based abandonment.

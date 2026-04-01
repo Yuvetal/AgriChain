@@ -1,0 +1,124 @@
+.pg-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(8px);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.3s ease-out;
+}
+
+.pg-modal-card {
+  width: 90%;
+  max-width: 900px;
+  max-height: 85vh;
+  padding: 40px;
+  position: relative;
+  overflow-y: auto;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.5);
+}
+
+.pg-close-btn {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background: none;
+  border: none;
+  color: #aaa;
+  font-size: 28px;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.pg-close-btn:hover {
+  color: #fff;
+  transform: scale(1.1);
+}
+
+.pg-header {
+  text-align: center;
+  margin-bottom: 40px;
+}
+
+.pg-logo-icon {
+  font-size: 40px;
+  margin-bottom: 10px;
+  filter: drop-shadow(0 0 10px rgba(0, 255, 128, 0.5));
+}
+
+.pg-title {
+  font-size: 32px;
+  margin-bottom: 5px;
+  color: #fff;
+  letter-spacing: -0.5px;
+}
+
+.pg-subtitle {
+  color: #00ff80;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  font-weight: 600;
+}
+
+.pg-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 30px;
+  margin-bottom: 40px;
+}
+
+.pg-section h4 {
+  color: #fff;
+  font-size: 18px;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pg-section p {
+  color: #ccc;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.pg-footer {
+  display: flex;
+  justify-content: center;
+}
+
+.pg-ok-btn {
+  background: #00ff80;
+  color: #000;
+  padding: 15px 40px;
+  border: none;
+  border-radius: 50px;
+  font-weight: 700;
+  font-size: 16px;
+  cursor: pointer;
+  transition: 0.3s;
+  box-shadow: 0 10px 20px rgba(0, 255, 128, 0.2);
+}
+
+.pg-ok-btn:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 15px 30px rgba(0, 255, 128, 0.3);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@media (max-width: 600px) {
+  .pg-modal-card { padding: 25px; }
+  .pg-title { font-size: 24px; }
+  .pg-grid { gap: 20px; }
+}

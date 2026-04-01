@@ -174,13 +174,13 @@ function Login({ isAuth, setAccount }) {
                 </div>
 
                 <div className="terms-container">
-                    <h4 className="terms-title">⚖️ Network Protocol Agreement</h4>
+                    <h4 className="terms-title">⚖️ Global Harvest Protocol Agreement</h4>
                     <div className="terms-scrollbox">
-                        <p><b>1. Logistic Custody:</b> The Farmer is solely responsible for safe, timely transportation of goods.</p>
-                        <p><b>2. Native Gas Economy:</b> All network fees are paid by users. Our <b>Agri-Gas ATM</b> facilitates seamless INR-to-ETH conversion natively—no third-party software required.</p>
-                        <p><b>3. Admin Stake Sponsorship:</b> We front the 0.01 ETH stake for first-time farmers. Once you earn more than 0.01 ETH, you must self-fund all future security stakes.</p>
-                        <p><b>4. Geographic Integrity:</b> You must provide accurate, real-time product locations. Falsifying this data is grounds for immediate buyer-initiated refunds.</p>
-                        <p><b>5. Spoilage Policy:</b> If goods are destroyed in transit, the buyer gets a 100% refund and the farmer's stake is restored to ensure fairness.</p>
+                        <p><b>1. Logistic Custody & Provenance:</b> The Farmer is the sole custodian of the physical produce. By minting a batch, you agree that your GPS location and harvest data are mathematically pinned to the Sepolia Ledger.</p>
+                        <p><b>2. Invisible Vault & Cloud Sync:</b> Your Private Key is encrypted locally. By using this portal, you acknowledge that a <b>Cloud Backup</b> of your locked vault is stored on the AgriVault server to enable cross-device access via your SMS identity.</p>
+                        <p><b>3. Automated Gas ATM:</b> This protocol features an automated fiscal bridge. Whenever your vault balance drops below the threshold for transaction fees, the system will automatically convert a portion of your INR earnings into <b>ETH Gas</b> to ensure zero-downtime operations.</p>
+                        <p><b>4. Immutable Evidence Requirement:</b> All farmers MUST upload a <b>Packing Video</b>. Failure to provide clear evidence in a dispute will result in an automatic 100% refund to the Buyer and forfeiture of your stake.</p>
+                        <p><b>5. Hybrid Consensus:</b> You agree to abide by the majority decision (3/5) of the Arbitrator Pool. Administrative tie-breaking is only used to ensure protocol liquidity.</p>
                     </div>
                     <label className="terms-checkbox-label">
                         <input 
