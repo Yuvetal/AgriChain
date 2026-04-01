@@ -572,11 +572,14 @@ export default function Dashboard() {
 
         try {
           setUserMsg(`🚨 Uploading discrepancy evidence to IPFS...`);
-        const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
-        const res = await fetch(`${API_URL}/api/ipfs/upload`, {
-          method: 'POST',
-          body: formData
-        });
+          const formData = new FormData();
+          formData.append('file', file);
+
+          const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
+          const res = await fetch(`${API_URL}/api/ipfs/upload`, {
+            method: 'POST',
+            body: formData
+          });
           const data = await res.json();
           if (!res.ok || !data.ipfs_hash) throw new Error(data.error || "IPFS pin failed.");
           
