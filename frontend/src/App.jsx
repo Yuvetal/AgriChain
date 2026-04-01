@@ -21,45 +21,50 @@ function App() {
 
   // Check if dual-auth wallet is connected on load
   useEffect(() => {
-    // 1. Check Native Web2.5 Farmer Session First
-    const isFarmerAuthed = localStorage.getItem("farmer_session_active") === "true";
-    if (isFarmerAuthed) {
-      setAccount(localStorage.getItem("farmer_address") || "0xFarmer");
-      setIsAppReady(true);
-      return;
-    }
-
-    // 2. Check MetaMask Institutional Connect
-    const explicitLogout = sessionStorage.getItem("explicitly_logged_out") === "true";
-    if (explicitLogout) {
-      setIsAppReady(true);
-      return;
-    }
-
-    const eth = getEthereumObject();
-    if (eth) {
-      eth.request({ method: "eth_accounts" })
-        .then(accounts => {
-          if (accounts[0]) setAccount(accounts[0]);
-        })
-        .catch(console.error)
-        .finally(() => setIsAppReady(true)); // Block route evaluation until resolved
-
-      eth.on("accountsChanged", (accounts) => {
-        if (accounts[0]) {
-          setAccount(accounts[0]);
-        } else {
-          // Fallback to Farmer session if MetaMask disconnects
-          if (localStorage.getItem("farmer_session_active") === "true") {
-             setAccount(localStorage.getItem("farmer_address"));
-          } else {
-             setAccount("");
-          }
+    const initApp = async () => {
+      try {
+        // 1. Check Native Web2.5 Farmer Session First
+        const isFarmerAuthed = localStorage.getItem("farmer_session_active") === "true";
+        if (isFarmerAuthed) {
+          setAccount(localStorage.getItem("farmer_address") || "0xFarmer");
+          return;
         }
-      });
-    } else {
-      setIsAppReady(true); // No MetaMask detected, unblock routing
-    }
+
+        // 2. Check MetaMask Institutional Connect
+        const explicitLogout = sessionStorage.getItem("explicitly_logged_out") === "true";
+        if (explicitLogout) return;
+
+        const eth = getEthereumObject();
+        if (eth) {
+          // Wrap this in a separate try to catch specific provider errors
+          try {
+            const accounts = await eth.request({ method: "eth_accounts" });
+            if (accounts && accounts[0]) setAccount(accounts[0]);
+          } catch (ethErr) {
+            console.warn("Wallet locked or access denied. Starting in guest mode.", ethErr);
+          }
+
+          eth.on("accountsChanged", (accounts) => {
+            if (accounts[0]) {
+              setAccount(accounts[0]);
+            } else {
+              // Fallback to Farmer session if MetaMask disconnects
+              if (localStorage.getItem("farmer_session_active") === "true") {
+                 setAccount(localStorage.getItem("farmer_address"));
+              } else {
+                 setAccount("");
+              }
+            }
+          });
+        }
+      } catch (err) {
+        console.error("App Initialization Critical Failure:", err);
+      } finally {
+        setIsAppReady(true); // <--- UNBLOCK THE UI ALWAYS
+      }
+    };
+
+    initApp();
   }, []);
 
   const isAuth = !!account;
@@ -82,7 +87,7 @@ function App() {
             <Route path="/" element={<Home />} />
             <Route path="/login" element={<Login isAuth={isAuth} setAccount={setAccount} />} />
             <Route path="/contact" element={<Contact />} />
-            <Route path="/view-blockchain" element={<ViewBlockchain />} />
+            <Route path="/view-blockchain" element={<ViewBlockchain account={account} />} />
 
             {/* 🔒 Protected routes */}
             <Route

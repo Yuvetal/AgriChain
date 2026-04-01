@@ -9,25 +9,33 @@ import WalletConnect from "../components/WalletConnect";
 const statusMap = {
   0: "Created",
   1: "Sold",
-  2: "Delivered",
-  3: "Refunded"
+  2: "Dispatched",
+  3: "Confirmed",
+  4: "PartialConfirm",
+  5: "Disputed",
+  6: "FarmerWins",
+  7: "BuyerWins",
+  8: "Abandoned",
+  9: "Refunded",
+  10: "Cancelled"
 };
 
-function BlockchainViewer() {
+function BlockchainViewer({ globalAccount }) {
   const [blocks, setBlocks] = useState([]);
   const [error, setError] = useState("");
   const [nodes, setNodes] = useState([]);
   const [edges, setEdges] = useState([]);
-  const [account, setAccount] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedRootId, setSelectedRootId] = useState("");
+  const [isWrongNetwork, setIsWrongNetwork] = useState(false);
 
   // Fetch blockchain data directly from the Smart Contract
   const fetchBatches = async () => {
     setIsLoading(true);
     setError("");
     try {
-      const { contract } = await getContract();
+      const { contract, networkMismatch } = await getContract();
+      setIsWrongNetwork(networkMismatch);
+
       const countBigInt = await contract.batchCount();
       const numBatches = parseInt(countBigInt.toString());
       
@@ -40,24 +48,28 @@ function BlockchainViewer() {
           name: batch.name,
           quantity: batch.quantity.toString(),
           remainingQuantity: batch.remainingQuantity.toString(),
-          price: batch.price.toString(),
+          price: batch.pricePerKg.toString(),
           status: statusMap[batch.status] || "Unknown",
         });
       }
       setBlocks(results);
     } catch (err) {
       console.error(err);
-      setError("Failed to fetch batches from the blockchain. Are you connected to the right network?");
+      if (err.message.includes("call revert exception") || err.message.includes("no code at address")) {
+         setError("Critical: Supply Chain Contract not found on this network. Please switch MetaMask to Sepolia.");
+      } else {
+         setError("Failed to fetch batches from the blockchain. Service may be temporarily unavailable.");
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    if (account) {
-      fetchBatches();
-    }
-  }, [account]);
+    fetchBatches();
+  }, [globalAccount]);
+
+  // ... (rest of the React Flow logic remains the same)
 
   // Convert blocks to React Flow nodes/edges and isolate families
   useEffect(() => {
@@ -190,17 +202,30 @@ function BlockchainViewer() {
     setEdges(flowEdges);
   }, [blocks, selectedRootId]);
 
+  const [selectedRootId, setSelectedRootId] = useState("");
+
   const rootBatches = blocks.filter(b => b.parentId === "0");
+  const isFarmer = localStorage.getItem("farmer_session_active") === "true";
 
   return (
     <div className="viewer-container" style={{ height: "80vh", display: "flex", flexDirection: "column" }}>
       <h2 className="viewer-title">🌾 Blockchain Produce Explorer</h2>
       
-      <div style={{ alignSelf: "center", marginBottom: "1rem" }}>
-         <WalletConnect onConnect={setAccount} />
+      <div style={{ alignSelf: "center", marginBottom: "1rem", display: "flex", flexDirection: "column", alignItems: "center", gap: "10px" }}>
+         {!globalAccount && <WalletConnect onConnect={() => {}} />}
+         {globalAccount && (
+           <div className="auth-badge" style={{ backgroundColor: isFarmer ? "#e8f5e9" : "#e3f2fd", padding: "8px 16px", borderRadius: "20px", border: `1px solid ${isFarmer ? "#2e7d32" : "#1976d2"}`, color: isFarmer ? "#2e7d32" : "#1976d2", fontWeight: "bold" }}>
+             {isFarmer ? "👩‍🌾 Connected via Farmer Portal" : `🦊 Connected: ${globalAccount.slice(0,6)}...${globalAccount.slice(-4)}`}
+           </div>
+         )}
+         {isWrongNetwork && (
+           <div className="network-warning" style={{ color: "#d32f2f", backgroundColor: "#ffebee", padding: "5px 15px", borderRadius: "10px", fontSize: "0.8rem", fontWeight: "bold" }}>
+             ⚠️ MetaMask is on the WRONG network. Showing read-only data from Sepolia.
+           </div>
+         )}
       </div>
 
-      {account && !isLoading && blocks.length > 0 && (
+      {globalAccount && !isLoading && blocks.length > 0 && (
         <div style={{ alignSelf: "center", marginBottom: "1rem", display: "flex", gap: "10px", alignItems: "center" }}>
           <label style={{ fontWeight: "bold", color: "#2e7d32" }}>View Specific Harvest Chain:</label>
           <select 
@@ -222,11 +247,11 @@ function BlockchainViewer() {
       
       {isLoading && <p className="loading-text text-center text-gray-500 font-bold animate-pulse">Querying the Blockchain...</p>}
       
-      {!account && !isLoading && (
+      {!globalAccount && !isLoading && (
         <p className="text-center text-gray-600 mt-8">Connect MetaMask to view transparency reports on-chain.</p>
       )}
 
-      {account && !isLoading && nodes.length === 0 && !error && (
+      {globalAccount && !isLoading && nodes.length === 0 && !error && (
         <p className="loading-text text-center text-gray-400">No batches recorded on-chain yet.</p>
       )}
 

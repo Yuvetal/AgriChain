@@ -1,9 +1,9 @@
 import BlockchainViewer from "../features/BlockchainViewer";
 
-export default function ViewBlockchain() {
+export default function ViewBlockchain({ account }) {
   return (
     <div className="p-6">
-      <BlockchainViewer />
+      <BlockchainViewer globalAccount={account} />
     </div>
   );
 }

@@ -60,38 +60,60 @@ export const connectWallet = async () => {
 };
 
 export const getContract = async () => {
-  // 1. Web2.5 Path: Check if Farmer is logged in via native Invisible Wallet
+  const eth = getEthereumObject();
+  let metamaskAccounts = [];
+  let currentChainId = null;
+  let networkMismatch = false;
+
+  if (eth) {
+    try {
+      metamaskAccounts = await eth.request({ method: "eth_accounts" });
+      currentChainId = await eth.request({ method: "eth_chainId" });
+    } catch (e) {}
+  }
+
+  // 1. Web3 Path: Use MetaMask ONLY if authorized AND on correct network
+  if (metamaskAccounts && metamaskAccounts.length > 0) {
+    if (currentChainId === SEPOLIA_NETWORK_ID) {
+      const provider = new ethers.BrowserProvider(eth);
+      const signer = await provider.getSigner();
+      const contract = new ethers.Contract(
+        SupplyChainArtifact.address,
+        SupplyChainArtifact.abi,
+        signer
+      );
+      return { contract, signer, provider, networkMismatch: false };
+    } else {
+      networkMismatch = true;
+    }
+  }
+
+  // 2. Web2.5 Path: Use Farmer session if active
   const isFarmer = localStorage.getItem("farmer_session_active") === "true";
-  
   if (isFarmer) {
-      // Create a native RPC connection directly to the blockchain
-      // Bypassing generic public nodes to explicitly avoid Chrome CORS blocks
-      const rpcUrl = process.env.REACT_APP_ALCHEMY_RPC_URL || "https://rpc.sepolia.org"; // Fallback to public if env is missing
+      const rpcUrl = process.env.REACT_APP_ALCHEMY_RPC_URL || "https://rpc.sepolia.org";
       const provider = new ethers.JsonRpcProvider(rpcUrl);
       const signer = await getActiveFarmerSigner(provider);
       
-      if (!signer) throw new Error("Fatal: Missing encrypted vault!");
-
-      const contract = new ethers.Contract(
-          SupplyChainArtifact.address,
-          SupplyChainArtifact.abi,
-          signer
-      );
-      
-      return { contract, signer, provider };
+      if (signer) {
+        const contract = new ethers.Contract(
+            SupplyChainArtifact.address,
+            SupplyChainArtifact.abi,
+            signer
+        );
+        return { contract, signer, provider, networkMismatch: false };
+      }
   }
 
-  // 2. Web3 Path: Native Institutional Connect (MetaMask)
-  const provider = getWeb3Provider();
-  if (!provider) throw new Error("MetaMask is required for Institutional Access.");
-  
-  const signer = await provider.getSigner();
-  
+  // 3. Resilient Read-Only Mode: Fallback to Public RPC
+  // Returns also the networkMismatch status if MetaMask was on the wrong network
+  const rpcUrl = process.env.REACT_APP_ALCHEMY_RPC_URL || "https://rpc.sepolia.org";
+  const provider = new ethers.JsonRpcProvider(rpcUrl);
   const contract = new ethers.Contract(
     SupplyChainArtifact.address,
     SupplyChainArtifact.abi,
-    signer
+    provider
   );
   
-  return { contract, signer, provider };
+  return { contract, signer: null, provider, networkMismatch };
 };
