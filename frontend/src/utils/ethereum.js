@@ -72,23 +72,7 @@ export const getContract = async () => {
     } catch (e) {}
   }
 
-  // 1. Web3 Path: Use MetaMask ONLY if authorized AND on correct network
-  if (metamaskAccounts && metamaskAccounts.length > 0) {
-    if (currentChainId === SEPOLIA_NETWORK_ID) {
-      const provider = new ethers.BrowserProvider(eth);
-      const signer = await provider.getSigner();
-      const contract = new ethers.Contract(
-        SupplyChainArtifact.address,
-        SupplyChainArtifact.abi,
-        signer
-      );
-      return { contract, signer, provider, networkMismatch: false };
-    } else {
-      networkMismatch = true;
-    }
-  }
-
-  // 2. Web2.5 Path: Use Farmer session if active
+  // 1. Web2.5 Path: Use Farmer session if active (Primary Priority)
   const isFarmer = localStorage.getItem("farmer_session_active") === "true";
   if (isFarmer) {
       const rpcUrl = process.env.REACT_APP_ALCHEMY_RPC_URL || "https://rpc.sepolia.org";
@@ -105,8 +89,23 @@ export const getContract = async () => {
       }
   }
 
+  // 2. Web3 Path: Use MetaMask if authorized AND on correct network
+  if (metamaskAccounts && metamaskAccounts.length > 0) {
+    if (currentChainId === SEPOLIA_NETWORK_ID) {
+      const provider = new ethers.BrowserProvider(eth);
+      const signer = await provider.getSigner();
+      const contract = new ethers.Contract(
+        SupplyChainArtifact.address,
+        SupplyChainArtifact.abi,
+        signer
+      );
+      return { contract, signer, provider, networkMismatch: false };
+    } else {
+      networkMismatch = true;
+    }
+  }
+
   // 3. Resilient Read-Only Mode: Fallback to Public RPC
-  // Returns also the networkMismatch status if MetaMask was on the wrong network
   const rpcUrl = process.env.REACT_APP_ALCHEMY_RPC_URL || "https://rpc.sepolia.org";
   const provider = new ethers.JsonRpcProvider(rpcUrl);
   const contract = new ethers.Contract(
