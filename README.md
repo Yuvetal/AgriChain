@@ -1,56 +1,89 @@
-# 🌾 AgriChain — Decentralized Agricultural Marketplace
+# 🌾 AgroChainMart: The Trust Protocol for Global Agriculture
 
-**A fractionalized B2C agricultural supply chain built on the Sepolia Ethereum Testnet.**
+**A Decentralized B2B/B2C Supply Chain Marketplace with Transparent Proof-of-Custody and Peer-Reviewed Arbitration.**
 
-AgriChain is a high-trust, decentralized protocol designed to bridge the gap between rural farmers and institutional/retail buyers through a "Modern Earth" interactive marketplace. It leverages the Ethereum Ledger to ensure 100% provenance, immutability, and financial security.
-
----
-
-### 🌟 Key Visionary Features
-
-*   **🛡️ Delegated Staking:** A non-custodial sybil-defense mechanism requiring a 0.01 ETH deposit for original root harvests (fully refundable).
-*   **🔗 Parent-Child Traceability:** Native on-chain linkage mapping the entire journey from Seed Harvest to processed Downstream Products.
-*   **💨 Invisible Wallet Integration:** A "Web2.5" authentication gateway using browser-local, pin-protected private key backup systems to simplify blockchain interactions for non-technical users.
-*   **⚖️ Fractionalized Escrow:** Buyers can purchase precise partial quantities (e.g., 20kg out of a 500kg batch) with automated price-to-wei conversion and linear financial distribution.
-*   **✨ Modern Earth UI:** A high-end, glassmorphic design system using the 'Outfit' geometric font and emerald-accented slate palettes.
+AgroChainMart is a high-precision, blockchain-native marketplace designed to eliminate middleman exploitation and delivery fraud in the agricultural sector. It bridges the gap between rural farmers and institutional buyers through a unique combination of **On-Chain Escrow**, **IPFS Video Evidence**, and **Decentralized Multi-Party Governance**.
 
 ---
 
-### 🛠️ Technology Stack
+### 🌟 Core Innovation Pillars
 
-| Layer | Technology | Role |
+#### 1. ⚖️ Fractionalized "Price-Per-Kg" Economy
+Unlike typical NFT-based marketplaces, AgroChainMart supports **fractionalized batch purchases**. 
+- A farmer lists a 500kg harvest. 
+- A buyer can purchase exactly 10kg.
+- The smart contract automatically calculates the proportional ETH value, manages partial escrow release, and tracks remaining inventory.
+
+#### 2. 🛡️ The Dual-Layer Trust Protocol (IPFS + OTP)
+AgroChainMart eliminates "Empty Box" fraud via a mandatory two-step verification:
+- **Packing Evidence:** Farmers must upload a video of the scales and the sealed container to IPFS before dispatch.
+- **Delivery Scene / OTP:** Buyers must provide a 6-digit OTP (sent to a nominated trustee) to unlock funds. In high-stakes disputes, a secondary "Delivery Scene" video provides the final evidentiary layer for arbitrators.
+
+#### 3. 🏛️ Hybrid Consensus Arbitration
+Our recruitment and dispute resolution engine is built for institutional-grade reliability:
+- **Identity Awareness:** Applicants for Arbitrator roles must reveal their real-world **Name and APMC ID** to stay transparent to peers.
+- **Majority Rule:** Decisions require a `(PoolSize / 2) + 1` majority.
+- **Admin Tie-Breaking:** In even-numbered pools (e.g., 2 or 4), the protocol authorizes an Admin "Casting Vote" to resolve deadlocks.
+
+#### 4. 🏧 AgriBank & Gas ATM (Web2.5 Bridge)
+To simplify blockchain for non-technical farmers, we’ve integrated:
+- **Invisible Wallets:** Phone + PIN based local encryption for signing transactions without MetaMask.
+- **AgriBank Passbook:** A local INR ledger tracking off-chain earnings.
+- **Gas ATM:** Automatic conversion of INR balance into real Sepolia ETH (0.005 ETH drops) to ensure farmers never run out of gas for harvests.
+
+---
+
+### 🛠️ Technical Architecture
+
+| Layer | Component | Implementation |
 | :--- | :--- | :--- |
-| **Blockchain** | Solidity (0.8.28) | Core Protocol & Smart Contracts |
-| **Network** | Sepolia Testnet | Decentralized Ledger |
-| **Oracle** | Chainlink | Real-time ETH/USD Price Feed Verification |
-| **Frontend** | React.js / Ethers.js | Interactive Dashboard & Web3 Integration |
-| **Security** | OpenZeppelin | ReentrancyGuard & Math Standards |
+| **Blockchain** | Smart Contracts | Solidity 0.8.28 (SupplyChainV2) |
+| **Storage** | Evidence Engine | Pinata IPFS (Content Addressing) |
+| **Identity** | OTP Gateway | Twilio Verify API |
+| **Fintech** | Banking Proxy | Flask (Python) / AgriBank Nodes |
+| **Frontend** | Interactive UI | React.js / Ethers.js / Glassmorphism |
+| **Network** | Infrastructure | Sepolia Ethereum Testnet |
 
 ---
 
-### 🚀 Launch / Simulation Instructions
+### 🚀 Developer Setup
 
-To simulate a full "Harvest to Sale" lifecycle:
+#### 📦 1. Smart Contracts (Blockchain)
+```bash
+cd blockchain
+npm install
+npx hardhat compile
+npx hardhat run scripts/deploy.js --network sepolia
+```
 
-1.  **Setup Funds:** Obtain Sepolia ETH from [Alchemy](https://sepoliafaucet.com/) or [Google Cloud](https://cloud.google.com/application/web3/faucet/ethereum/sepolia).
-2.  **Farmer Onboarding:** Log in as a Farmer to create an invisible wallet. Perform a **Seed Harvest** (0.01 ETH stake required).
-3.  **Marketplace View:** Observe the **Traceability Card** appearing in the live marketplace with automated INR price conversions.
-4.  **The Purchase:** Use an Institutional wallet (MetaMask) to perform a **Partial Purchase**.
-5.  **Chain Linkage:** Log in as the Middleman to add a **Downstream Product** (e.g., Rice Flour) using the original harvest as a blockchain-verified parent.
+#### 🖥️ 2. AgriBank Server (Backend)
+```bash
+cd backend
+python -m venv venv
+source venv/bin/activate  # (or venv\Scripts\activate on Windows)
+pip install -r requirements.txt
+python app.py
+```
+
+#### 🎨 3. Marketplace UI (Frontend)
+```bash
+cd frontend
+npm install
+npm start
+```
 
 ---
 
-### 🛡️ Safety & Security Checkpoint
+### 🧭 Project Status: Production-Ready (Sepolia)
+The AgroChainMart Smart Contract is currently verified and live on **Sepolia Ethereum**.
 
-This project was built with a **Security-First** mindset:
-*   [x] **Reentrancy Protection:** All withdrawals follow the Checks-Effects-Interactions pattern.
-*   [x] **Anti-Spam Paymaster:** Admin-sponsored staking allows for bot-resistant farmer onboarding.
-*   [x] **Human-Readable Errors:** A custom mitigation layer translates technical RPC errors into actionable user feedback.
+- **Protocol Version:** 2.1 (Hybrid Consensus)
+- **Security:** Built-in Reentrancy Guards & Checks-Effects-Interactions patterns.
+- **Integrity:** Every state change (Harvest → Purchase → Dispatch → Conflict → Resolution) is immutable and cryptographically provable.
 
 ---
 
-> [!IMPORTANT]
-> **Birthday Launch Note (01.04.2026)**
-> This protocol represents my commitment to solving real-world supply chain transparency issues through decentralized state machines. Distributed under the MIT License.
+### 📜 License
+AgroChainMart is distributed under the **MIT License**. See `LICENSE` for more information.
 
-Developed with 💚 for the future of Agritech.
+Developed with 💚 for a fairer agricultural future.

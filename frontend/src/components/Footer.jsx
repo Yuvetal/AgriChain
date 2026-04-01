@@ -1,11 +1,12 @@
 import "./Footer.css";
+import "./Footer.css";
 
 export default function Footer() {
   return (
     <footer className="footer-container">
       <div className="footer-content">
         <div className="footer-left">
-          <span className="footer-logo">AgriChain Protocol</span>
+          <span className="footer-logo">AgroChainMart Protocol</span>
           <span className="footer-copyright">© 2024 Decentralized Supply Chain Ledger</span>
         </div>
         <div className="footer-right">

@@ -19,7 +19,7 @@ export default function Navbar({ account }) {
   return (
     <nav className="navbar">
       <Link to="/" className="navbar-logo">
-        <span className="logo-icon">🌾</span> AgriChain
+        <span className="logo-icon">🌾</span> AgroChainMart
       </Link>
       <div className="navbar-links">
         <Link to="/" className="nav-link">Home</Link>

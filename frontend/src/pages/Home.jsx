@@ -45,7 +45,7 @@ export default function Home() {
         {/* Benefits Section */}
         <section className="info-card benefits-card">
           <div className="card-icon">✨</div>
-          <h3>Why AgriChain?</h3>
+          <h3>Why AgroChainMart?</h3>
           <ul className="benefit-list">
             <li><span>✅</span> Automated 2% Protocol Revenue</li>
             <li><span>✅</span> 100% On-Chain Batch Tracking</li>
