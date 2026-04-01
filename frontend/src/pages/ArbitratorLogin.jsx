@@ -14,6 +14,11 @@ export default function ArbitratorLogin({ setArbitratorAccount }) {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
+  // Cloud Recovery State
+  const [showOtpInput, setShowOtpInput] = useState(false);
+  const [recoveryOtp, setRecoveryOtp] = useState("");
+  const [statusMsg, setStatusMsg] = useState("");
+
   // ── MetaMask Auth ─────────────────────────────────────────────────
   const handleMetaMaskLogin = async () => {
     setError("");
@@ -67,6 +72,36 @@ export default function ArbitratorLogin({ setArbitratorAccount }) {
       setError("Authentication failed. Check your credentials.");
       setIsLoading(false);
     }
+  };
+
+  const handleStartRecovery = async () => {
+    if (!phone) { setError("❌ Enter your phone number first."); return; }
+    setIsLoading(true);
+    setStatusMsg("⏳ Requesting Identity Recovery OTP...");
+    try {
+        const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
+        const res = await fetch(`${API_URL}/api/otp/send`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ phone })
+        });
+        if (!res.ok) throw new Error("Failed to send OTP.");
+        setShowOtpInput(true);
+        setStatusMsg("📩 OTP Sent! Enter it to pull your encrypted vault from the cloud.");
+    } catch (err) { setError(err.message); }
+    finally { setIsLoading(false); }
+  };
+
+  const handleFinalizeRecovery = async () => {
+    setIsLoading(true);
+    setStatusMsg("⏳ Synchronizing with AgriVault...");
+    try {
+        const { fetchVaultFromCloud } = await import("../utils/LocalWallet");
+        await fetchVaultFromCloud(phone, recoveryOtp);
+        setStatusMsg("✅ Vault Localized! Now enter your PIN to sign in.");
+        setShowOtpInput(false);
+    } catch (err) { setError(`❌ ${err.message}`); }
+    finally { setIsLoading(false); }
   };
 
   // ── On-chain Verification ────────────────────────────────────────

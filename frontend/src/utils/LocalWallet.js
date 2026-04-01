@@ -43,6 +43,9 @@ export const loginOrGenerateFarmer = async (phoneNumber, pin, onProgress) => {
     // Non-Custodial Client-Side Storage tied uniquely to their Number!
     localStorage.setItem(dynamicVaultKey, encryptedJson);
     localStorage.setItem("farmer_address", wallet.address);
+
+    // [New] AgriVault Cloud Sync: Backup the locked vault to the cloud server
+    await syncVaultToCloud(phoneNumber, encryptedJson);
   }
 
   // Set the temporal session token so the app knows they are authed right now
@@ -78,6 +81,40 @@ export const getActiveFarmerSigner = async (provider) => {
 
   const wallet = await ethers.Wallet.fromEncryptedJson(encryptedJson, password);
   return wallet.connect(provider);
+};
+
+// ---------- CLOUD SYNC HELPERS ----------
+
+const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
+
+export const syncVaultToCloud = async (phone, encryptedJson) => {
+  try {
+    await fetch(`${API_URL}/api/wallet/save`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phone: phone.replace(" ", ""), encrypted_json: encryptedJson })
+    });
+    console.log("⛅ AgriVault: Backup Successful.");
+  } catch (err) {
+    console.error("Cloud Sync Failed (Offline Mode):", err);
+  }
+};
+
+export const fetchVaultFromCloud = async (phone, otpCode) => {
+  const res = await fetch(`${API_URL}/api/wallet/recover`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ phone: phone.replace(" ", ""), code: otpCode })
+  });
+  
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Recovery failed.");
+  
+  // Save to local storage for future PIN-only logins
+  const dynamicVaultKey = `farmer_vault_${phone}`;
+  localStorage.setItem(dynamicVaultKey, data.encrypted_json);
+  
+  return data.encrypted_json;
 };
 
 export const logoutFarmer = () => {

@@ -12,6 +12,11 @@ function Login({ isAuth, setAccount }) {
   const [status, setStatus] = useState("");
   const [newWalletKey, setNewWalletKey] = useState(null);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
+  
+  // Cloud Recovery State
+  const [isRecovering, setIsRecovering] = useState(false);
+  const [recoveryOtp, setRecoveryOtp] = useState("");
+  const [showOtpInput, setShowOtpInput] = useState(false);
 
   // Prevent users from navigating to /login if they are already authenticated, but strictly enforce the Seed Phrase Backup Checkpoint
   useEffect(() => {
@@ -58,6 +63,33 @@ function Login({ isAuth, setAccount }) {
     }
   };
 
+  const handleStartRecovery = async () => {
+    if (!phoneNumber) { setStatus("❌ Enter your phone number first."); return; }
+    try {
+        setStatus("⏳ Requesting Identity Recovery OTP...");
+        const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
+        const res = await fetch(`${API_URL}/api/otp/send`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ phone: phoneNumber })
+        });
+        if (!res.ok) throw new Error("Failed to send OTP.");
+        setShowOtpInput(true);
+        setStatus("📩 OTP Sent! Enter it to pull your encrypted vault from the cloud.");
+    } catch (err) { setStatus(err.message); }
+  };
+
+  const handleFinalizeRecovery = async () => {
+    try {
+        setStatus("⏳ Synchronizing with AgriVault...");
+        const { fetchVaultFromCloud } = await import("../utils/LocalWallet");
+        await fetchVaultFromCloud(phoneNumber, recoveryOtp);
+        setStatus("✅ Vault Localized! Now enter your PIN to sign in.");
+        setShowOtpInput(false);
+        setIsRecovering(false);
+    } catch (err) { setStatus(`❌ ${err.message}`); }
+  };
+
   return (
     <div className="login-container">
       <div className="login-box glass-card">
@@ -102,6 +134,31 @@ function Login({ isAuth, setAccount }) {
                       className="login-input"
                     />
                 </div>
+                
+                {/* Cloud Recovery Trigger */}
+                {(!localStorage.getItem(`farmer_vault_${phoneNumber}`) && phoneNumber.length >= 10) && (
+                   <div className="recovery-prompt">
+                      {!showOtpInput ? (
+                        <button type="button" onClick={handleStartRecovery} className="text-link-btn">
+                           First time on this device? ☁️ Sync from Cloud
+                        </button>
+                      ) : (
+                        <div className="otp-recovery-box">
+                           <input 
+                             type="text" 
+                             placeholder="Enter 6-digit OTP" 
+                             value={recoveryOtp} 
+                             onChange={e => setRecoveryOtp(e.target.value)}
+                             className="otp-input"
+                           />
+                           <button type="button" onClick={handleFinalizeRecovery} className="verify-btn">
+                             Verify & Pull Vault
+                           </button>
+                        </div>
+                      )}
+                   </div>
+                )}
+
                 <div className="form-group">
                     <label>4-Digit Security PIN</label>
                     <input 

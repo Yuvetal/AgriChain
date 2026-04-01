@@ -32,13 +32,10 @@ PINATA_SECRET_KEY = os.getenv("PINATA_SECRET_KEY")
 w3 = Web3(Web3.HTTPProvider(ALCHEMY_RPC))
 twilio_client = Client(TWILIO_SID, TWILIO_AUTH)
 
-# In-Memory Sandbox for public/unverified testers
-# (Ensures they can still test the flow without a verified Twilio number)
-simulated_codes = {}
-
-# Personal Finance Ledger (Simulated Merchant Bank Accounts)
-# Mapping: Phone Number -> {"balance_inr": X, "history": [...]}
-bank_accounts = {}
+# Identity Vault Storage (The AgriVault)
+# Mapping: Phone Number -> Encrypted JSON Blob
+# This allows farmers to access their same account from any device
+cloud_vaults = {}
 
 # ---------- IDENTITY VERIFICATION ROUTES ----------
 
@@ -98,12 +95,72 @@ def verify_otp():
         # CASE B: Sandbox Check
         else:
             is_valid = (simulated_codes.get(formatted_phone) == str(code))
-            if is_valid:
-                del simulated_codes[formatted_phone] # Consume code
-            return jsonify({"status": "sandbox_approved", "valid": is_valid})
-
+            return jsonify({"status": "approved" if is_valid else "rejected", "valid": is_valid})
+            
     except Exception as e:
         print(f"Verification Engine Error: {str(e)}")
+        return jsonify({"error": str(e)}), 400
+
+# ---------- CLOUD SYNC & RECOVERY ROUTES ----------
+
+@app.route("/api/wallet/save", methods=["POST"])
+def save_wallet():
+    """Backup an encrypted wallet JSON to the cloud."""
+    try:
+        data = request.json
+        phone = data.get("phone", "").replace(" ", "")
+        encrypted_json = data.get("encrypted_json")
+        
+        if not phone or not encrypted_json:
+            return jsonify({"error": "Phone and Wallet JSON required."}), 400
+            
+        # Standardize phone
+        if not phone.startswith("+"): 
+            phone = f"+91{phone}"
+            
+        cloud_vaults[phone] = encrypted_json
+        print(f"✅ Cloud Sync: Vault backed up for {phone}")
+        return jsonify({"status": "success", "message": "Wallet backed up to AgriVault."})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+@app.route("/api/wallet/recover", methods=["POST"])
+def recover_wallet():
+    """Retrieve an encrypted wallet JSON after solving an OTP challenge."""
+    try:
+        data = request.json
+        phone = data.get("phone", "").replace(" ", "")
+        code = data.get("code")
+        
+        if not phone.startswith("+"): 
+            phone = f"+91{phone}"
+            
+        # 1. Verify OTP first (Security Checkpoint)
+        # CASE A: Real Twilio check
+        is_valid = False
+        if DEMO_PHONE and phone == DEMO_PHONE:
+            check = twilio_client.verify.v2.services(VERIFY_SERVICE_SID) \
+                .verification_checks \
+                .create(to=phone, code=code)
+            is_valid = (check.status == "approved")
+        # CASE B: Sandbox check
+        else:
+            is_valid = (simulated_codes.get(phone) == str(code))
+            
+        if not is_valid:
+            return jsonify({"error": "Security Breach: Invalid OTP. Identity recovery denied."}), 401
+            
+        # 2. Return the Vault
+        vault = cloud_vaults.get(phone)
+        if not vault:
+            return jsonify({"error": "No cloud backup found for this number."}), 404
+            
+        return jsonify({
+            "status": "success",
+            "encrypted_json": vault,
+            "message": "Identity retrieved from cloud. Enter PIN to localise."
+        })
+    except Exception as e:
         return jsonify({"error": str(e)}), 400
 
 # ---------- MERCHANT BANKING & AGRI-GAS ATM ----------
