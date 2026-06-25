@@ -133,7 +133,9 @@ export default function ArbitratorApply() {
 
       // We dynamically import the artifact to avoid massive bundle locking
       const contractArtifact = require("../contracts/SupplyChain.json");
-      const contract = new ethers.Contract(contractArtifact.address, contractArtifact.abi, connectedWallet);
+      const rawContract = new ethers.Contract(contractArtifact.address, contractArtifact.abi, connectedWallet);
+      const { wrapContractForEIP4337 } = require("../utils/ethereum");
+      const contract = wrapContractForEIP4337(rawContract, connectedWallet, provider);
 
       // Check duplications
       const isArb = await contract.isArbitrator(decWallet.address);

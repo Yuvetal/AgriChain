@@ -10,6 +10,10 @@ export const hasLocalWallet = () => {
 };
 
 export const getFarmerAddress = () => {
+  return localStorage.getItem("farmer_smart_account") || localStorage.getItem("farmer_address");
+};
+
+export const getFarmerEOAAddress = () => {
   return localStorage.getItem("farmer_address");
 };
 
@@ -46,6 +50,20 @@ export const loginOrGenerateFarmer = async (phoneNumber, pin, onProgress) => {
 
     // [New] AgriVault Cloud Sync: Backup the locked vault to the cloud server
     await syncVaultToCloud(phoneNumber, encryptedJson);
+  }
+
+  // Predict and cache the SimpleAccount smart account address
+  try {
+    const rpcUrl = process.env.REACT_APP_ALCHEMY_RPC_URL || "https://rpc.sepolia.org";
+    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const factoryArtifact = require("../contracts/SimpleAccountFactory.json");
+    const factoryContract = new ethers.Contract(factoryArtifact.address, factoryArtifact.abi, provider);
+    const salt = 0;
+    const smartAccountAddress = await factoryContract.predictAddress(wallet.address, salt);
+    localStorage.setItem("farmer_smart_account", smartAccountAddress);
+    console.log("Predicted Smart Account:", smartAccountAddress);
+  } catch (err) {
+    console.error("Failed to predict smart account address:", err);
   }
 
   // Set the temporal session token so the app knows they are authed right now

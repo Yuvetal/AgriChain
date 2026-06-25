@@ -35,18 +35,21 @@ const AddTransaction = () => {
   const fetchMerchantStatus = async () => {
     try {
       const { contract, signer, provider } = await getContract();
-      const addr = await signer.getAddress();
+      const isFarmerSession = localStorage.getItem("farmer_session_active") === "true";
+      const checkAddress = isFarmerSession 
+        ? localStorage.getItem("farmer_smart_account") 
+        : await signer.getAddress();
       
       // 1. Fetch Wallet Balance
-      const bal = await provider.getBalance(addr);
+      const bal = await provider.getBalance(checkAddress);
       setFarmerBalance(ethers.formatEther(bal));
 
       // 2. Fetch Protocol Stats
-      const earnings = await contract.totalEarnings(addr);
+      const earnings = await contract.totalEarnings(checkAddress);
       setFarmerEarnings(ethers.formatEther(earnings));
 
       // 3. Check Sponsorship Status
-      const sponsored = await contract.isAdminSponsored(addr);
+      const sponsored = await contract.isAdminSponsored(checkAddress);
       setIsSponsored(sponsored);
     } catch (err) {
       console.error("Merchant Status Sync Failed:", err);
@@ -249,23 +252,28 @@ const AddTransaction = () => {
       const stakeWei = ethers.parseEther(stakeEth.toFixed(18));
 
       // PROACTIVE BALANCE CHECK: 
-      const userBalance = await signer.getProvider().getBalance(await signer.getAddress());
-      const gasBuffer = ethers.parseEther("0.005"); // Minimum gas reserve
+      const isFarmerSession = localStorage.getItem("farmer_session_active") === "true";
+      const checkAddress = isFarmerSession 
+        ? localStorage.getItem("farmer_smart_account") 
+        : await signer.getAddress();
+
+      const userBalance = await signer.getProvider().getBalance(checkAddress);
+      const gasBuffer = isFarmerSession ? 0n : ethers.parseEther("0.005");
       const totalNeeded = isSponsored ? gasBuffer : stakeWei + gasBuffer;
       
       if (userBalance < totalNeeded) {
-        setMessage(`❌ Not enough funds in your Vault. You need at least ${ethers.formatEther(totalNeeded).slice(0,6)} ETH (Stake + Gas).`);
+        const walletTypeName = isFarmerSession ? "Smart Wallet" : "MetaMask Wallet";
+        setMessage(`❌ Not enough funds in your ${walletTypeName}. You need at least ${ethers.formatEther(totalNeeded).slice(0,6)} ETH.`);
         setIsProcessing(false);
         return;
       }
 
       let tx;
       if (!selectedParentHash) {
-        const addr = await signer.getAddress();
-        const isSponsored = await contract.isAdminSponsored(addr);
+        const isSponsoredActual = await contract.isAdminSponsored(checkAddress);
         tx = await contract.createBatch(
           productName, parsedQuantity, pricePerKgInWei, 0, location, expiryTimestamp,
-          { value: isSponsored ? 0 : stakeWei }
+          { value: isSponsoredActual ? 0 : stakeWei }
         );
       } else {
         tx = await contract.createBatch(

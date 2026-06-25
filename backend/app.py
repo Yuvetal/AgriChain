@@ -4,6 +4,10 @@ from twilio.rest import Client
 from web3 import Web3
 import os
 import requests
+import json
+from eth_abi import encode
+from eth_utils import keccak
+from eth_account.messages import encode_defunct
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 
@@ -36,6 +40,8 @@ twilio_client = Client(TWILIO_SID, TWILIO_AUTH)
 # Mapping: Phone Number -> Encrypted JSON Blob
 # This allows farmers to access their same account from any device
 cloud_vaults = {}
+simulated_codes = {}
+bank_accounts = {}
 
 # ---------- IDENTITY VERIFICATION ROUTES ----------
 
@@ -204,60 +210,134 @@ def bank_withdrawal():
 @app.route("/api/bank/buy-gas", methods=["POST"])
 def buy_gas():
     """
-    Agri-Gas ATM: Converts farmer's imaginary INR bank balance into real Sepolia ETH.
+    Agri-Gas ATM: Deprecated in favor of EIP-4337 Account Abstraction.
     """
+    return jsonify({
+        "error": "The Gas ATM is deprecated. Transactions are now gasless and sponsored by the Paymaster!"
+    }), 400
+
+def load_eip4337_contract(name):
+    try:
+        BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+        path_json = os.path.join(BASE_DIR, "contracts", f"{name}.json")
+        if not os.path.exists(path_json):
+            return None, None
+        with open(path_json) as f:
+            data = json.load(f)
+            return data["address"], data["abi"]
+    except Exception as e:
+        print(f"Error loading contract {name}: {str(e)}")
+        return None, None
+
+@app.route("/api/paymaster/sign", methods=["POST"])
+def sign_paymaster_op():
     try:
         data = request.json
-        phone = data.get("phone")
-        farmer_address = data.get("address")
-        amount_inr = float(data.get("amount_inr", 250)) # Default ₹250 for gas
+        user_op = data.get("userOp")
         
-        if not phone.startswith("+"):
-            phone = f"+91{phone}"
+        paymaster_address, _ = load_eip4337_contract("AgroPaymaster")
+        if not paymaster_address:
+            return jsonify({"error": "AgroPaymaster contract not deployed yet."}), 500
             
-        # 1. Verify INR Balance
-        account = bank_accounts.get(phone, {"balance_inr": 0, "history": []})
-        if account["balance_inr"] < amount_inr:
-            return jsonify({"error": "Insufficient INR Balance in Passbook."}), 400
-            
-        # 2. On-Chain Automated GAS DROP (Admin -> Farmer)
-        # Fixed Gas Drop: 0.005 ETH
-        eth_drop = 0.005
+        # Sponsoring validity window: 1 hour
+        import time
+        valid_until = int(time.time()) + 3600
+        valid_after = 0
         
-        # Build Transaction
-        nonce = w3.eth.get_transaction_count(ADMIN_ADDR)
-        tx = {
+        chain_id = w3.eth.chain_id
+        
+        init_code_hash = w3.keccak(hexstr=user_op['initCode'])
+        call_data_hash = w3.keccak(hexstr=user_op['callData'])
+        
+        types = [
+            'address', 'uint256', 'bytes32', 'bytes32',
+            'uint256', 'uint256', 'uint256', 'uint256',
+            'uint256', 'uint256', 'address', 'uint48', 'uint48'
+        ]
+        values = [
+            w3.to_checksum_address(user_op['sender']),
+            int(user_op['nonce']),
+            init_code_hash,
+            call_data_hash,
+            int(user_op['callGasLimit']),
+            int(user_op['verificationGasLimit']),
+            int(user_op['preVerificationGas']),
+            int(user_op['maxFeePerGas']),
+            int(user_op['maxPriorityFeePerGas']),
+            int(chain_id),
+            w3.to_checksum_address(paymaster_address),
+            int(valid_until),
+            int(valid_after)
+        ]
+        
+        encoded_data = encode(types, values)
+        paymaster_hash = keccak(encoded_data)
+        
+        message = encode_defunct(primitive=paymaster_hash)
+        signed_message = w3.eth.account.sign_message(message, private_key=ADMIN_KEY)
+        signature = signed_message.signature.hex()
+        
+        valid_until_hex = f"{valid_until:012x}"
+        valid_after_hex = f"{valid_after:012x}"
+        
+        sig_clean = signature[2:] if signature.startswith("0x") else signature
+        paymaster_and_data = f"{paymaster_address.lower()}{valid_until_hex}{valid_after_hex}{sig_clean}"
+        
+        return jsonify({
+            "status": "success",
+            "paymasterAndData": paymaster_and_data
+        })
+    except Exception as e:
+        print(f"Paymaster Signing Error: {str(e)}")
+        return jsonify({"error": str(e)}), 400
+
+@app.route("/api/userop/submit", methods=["POST"])
+def submit_userop():
+    try:
+        data = request.json
+        user_op = data.get("userOp")
+        
+        entry_point_address, entry_point_abi = load_eip4337_contract("EntryPoint")
+        if not entry_point_address:
+            return jsonify({"error": "EntryPoint contract not deployed yet."}), 500
+            
+        entry_point_contract = w3.eth.contract(address=entry_point_address, abi=entry_point_abi)
+        
+        user_op_tuple = (
+            w3.to_checksum_address(user_op['sender']),
+            int(user_op['nonce']),
+            w3.to_bytes(hexstr=user_op['initCode']),
+            w3.to_bytes(hexstr=user_op['callData']),
+            int(user_op['callGasLimit']),
+            int(user_op['verificationGasLimit']),
+            int(user_op['preVerificationGas']),
+            int(user_op['maxFeePerGas']),
+            int(user_op['maxPriorityFeePerGas']),
+            w3.to_bytes(hexstr=user_op['paymasterAndData']),
+            w3.to_bytes(hexstr=user_op['signature'])
+        )
+        
+        nonce = w3.eth.get_transaction_count(ADMIN_ADDR, 'pending')
+        
+        tx = entry_point_contract.functions.handleOps([user_op_tuple], w3.to_checksum_address(ADMIN_ADDR)).build_transaction({
+            'from': ADMIN_ADDR,
             'nonce': nonce,
-            'to': farmer_address,
-            'value': w3.to_wei(eth_drop, 'ether'),
-            'gas': 21000,
+            'gas': 3000000,
             'gasPrice': w3.eth.gas_price,
-            'chainId': 11155111 # Sepolia
-        }
+            'chainId': w3.eth.chain_id
+        })
         
-        # Sign and Broadcast
         signed_tx = w3.eth.account.sign_transaction(tx, ADMIN_KEY)
         tx_hash = w3.eth.send_raw_transaction(signed_tx.rawTransaction)
         tx_hex = w3.to_hex(tx_hash)
         
-        # 3. Deduct INR and Log
-        bank_accounts[phone]["balance_inr"] -= amount_inr
-        bank_accounts[phone]["history"].append({
-            "type": "Gas Top-Up (ATM)",
-            "amount": -amount_inr,
-            "hash": tx_hex,
-            "status": "ETH Dispatched",
-            "timestamp": "Refilling Gas..."
-        })
-        
+        print(f"🚀 UserOp submitted via Relayer. Tx Hash: {tx_hex}")
         return jsonify({
-            "status": "success", 
-            "tx_hash": tx_hex,
-            "new_balance": bank_accounts[phone]["balance_inr"]
+            "status": "success",
+            "tx_hash": tx_hex
         })
-        
     except Exception as e:
-        print(f"Agri-Gas ATM Error: {str(e)}")
+        print(f"UserOp Submission Error: {str(e)}")
         return jsonify({"error": str(e)}), 400
 
 @app.route("/api/ping", methods=["GET"])

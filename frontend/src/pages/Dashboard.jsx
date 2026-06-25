@@ -83,7 +83,7 @@ export default function Dashboard() {
       const liveRate = trueUsd * 85; // Fixed macroeconomic bridging from Verified USD to Target INR
       setConversionRate(liveRate);
       
-      const addr = isFarmerAuth ? localStorage.getItem("farmer_address") : "";
+      const addr = isFarmerAuth ? (localStorage.getItem("farmer_smart_account") || localStorage.getItem("farmer_address")) : "";
       if (isFarmerAuth) {
          setAccount(addr.toLowerCase());
          fetchBankRecord();
@@ -159,7 +159,7 @@ export default function Dashboard() {
     const statusInterval = setInterval(checkBankStatus, 5000); // Polling for demo stability
     
     if (isFarmerAuth) {
-      const addr = localStorage.getItem("farmer_address");
+      const addr = localStorage.getItem("farmer_smart_account") || localStorage.getItem("farmer_address");
       const fetchBal = async () => {
          try {
            const rpcUrl = process.env.REACT_APP_ALCHEMY_RPC_URL || "https://rpc.sepolia.org"; // Fallback to public if env is missing
@@ -741,25 +741,24 @@ export default function Dashboard() {
       </header>
 
       {isFarmerAuth && (
-         <div className="farmer-status-card">
-           <div className="status-item">
-             <span className="status-label">🔐 Secure Vault ID</span>
-             <span className="status-value">{localStorage.getItem("farmer_address")}</span>
-           </div>
-           <div className="status-divider"></div>
+        <div className="farmer-status-card">
+          <div className="status-item">
+            <span className="status-label">🔐 EOA Wallet ID</span>
+            <span className="status-value">{localStorage.getItem("farmer_address")}</span>
+          </div>
+          <div className="status-divider"></div>
+          <div className="status-item">
+            <span className="status-label">🌾 Smart Wallet Address</span>
+            <span className="status-value">{localStorage.getItem("farmer_smart_account")}</span>
+          </div>
+          <div className="status-divider"></div>
             <div className="status-item">
-              <span className="status-label">⛽ Gas Balance</span>
+              <span className="status-label">💎 Smart Wallet Balance</span>
               <div className="gas-status-row">
-                <span className={`status-value ${parseFloat(farmerBal) < 0.01 ? 'low-gas' : ''}`}>
+                <span className="status-value">
                   {farmerBal} <span className="currency-unit">ETH</span>
                 </span>
-                {isFarmerAuth && (
-                  <button className="top-up-btn" onClick={handleBuyGas} title="Exchange ₹250 for 0.005 ETH Gas">
-                    ⛽ Top Up (₹250)
-                  </button>
-                )}
               </div>
-              {parseFloat(farmerBal) < 0.01 && <span className="gas-warning">Warning: Low Gas</span>}
             </div>
          </div>
       )}

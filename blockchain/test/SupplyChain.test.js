@@ -13,7 +13,7 @@ describe("SupplyChain Gas Estimator", function () {
   });
 
   it("Estimates gas for batch creation", async function () {
-    const tx = await supplyChain.connect(farmer).createBatch("Apples", 100, ethers.parseEther("1"), 0, {
+    const tx = await supplyChain.connect(farmer).createBatch("Apples", 100, ethers.parseEther("1"), 0, "Punjab, India", {
       value: ethers.parseEther("0.01")
     });
     const receipt = await tx.wait();
@@ -21,7 +21,7 @@ describe("SupplyChain Gas Estimator", function () {
   });
 
   it("Estimates gas for purchase", async function () {
-    await supplyChain.connect(farmer).createBatch("Apples", 100, ethers.parseEther("1"), 0, {
+    await supplyChain.connect(farmer).createBatch("Apples", 100, ethers.parseEther("1"), 0, "Punjab, India", {
       value: ethers.parseEther("0.01")
     });
     const tx = await supplyChain.connect(buyer).purchaseBatch(1, { value: ethers.parseEther("1") });
@@ -30,7 +30,7 @@ describe("SupplyChain Gas Estimator", function () {
   });
 
   it("Estimates gas for delivery confirmation", async function () {
-    await supplyChain.connect(farmer).createBatch("Apples", 100, ethers.parseEther("1"), 0, {
+    await supplyChain.connect(farmer).createBatch("Apples", 100, ethers.parseEther("1"), 0, "Punjab, India", {
       value: ethers.parseEther("0.01")
     });
     await supplyChain.connect(buyer).purchaseBatch(1, { value: ethers.parseEther("1") });
