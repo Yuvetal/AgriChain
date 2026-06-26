@@ -106,33 +106,22 @@ export const getActiveFarmerSigner = async (provider) => {
 const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
 
 export const syncVaultToCloud = async (phone, encryptedJson) => {
-  try {
-    await fetch(`${API_URL}/api/wallet/save`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ phone: phone.replace(" ", ""), encrypted_json: encryptedJson })
-    });
-    console.log("⛅ AgriVault: Backup Successful.");
-  } catch (err) {
-    console.error("Cloud Sync Failed (Offline Mode):", err);
-  }
+  // Deprecated: Keystore backups are handled non-custodially via Privy/Web3Auth MPC.
+  console.log("⛅ AgriVault Sync (Deprecated): Keystore backups are managed by Privy/Web3Auth.");
+  // Save locally as fallback for the current user flow
+  const dynamicVaultKey = `farmer_vault_${phone}`;
+  localStorage.setItem(dynamicVaultKey, encryptedJson);
 };
 
 export const fetchVaultFromCloud = async (phone, otpCode) => {
-  const res = await fetch(`${API_URL}/api/wallet/recover`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ phone: phone.replace(" ", ""), code: otpCode })
-  });
-  
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Recovery failed.");
-  
-  // Save to local storage for future PIN-only logins
+  // Deprecated: Keystores are reconstructed in memory via Privy/Web3Auth social/SMS login.
+  console.warn("AgriVault recovery is deprecated. Social/SMS MPC login should be used.");
   const dynamicVaultKey = `farmer_vault_${phone}`;
-  localStorage.setItem(dynamicVaultKey, data.encrypted_json);
-  
-  return data.encrypted_json;
+  const localVault = localStorage.getItem(dynamicVaultKey);
+  if (!localVault) {
+    throw new Error("AgriVault Cloud Sync is deprecated. No local keystore fallback found.");
+  }
+  return localVault;
 };
 
 export const logoutFarmer = () => {

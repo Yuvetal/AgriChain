@@ -10,12 +10,36 @@ from eth_utils import keccak
 from eth_account.messages import encode_defunct
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
+from time import time
+from collections import defaultdict
 
 # Load secret protocol keys from .env
 load_dotenv()
 
 app = Flask(__name__)
 CORS(app) 
+
+# Configure global file upload limit to 20MB
+app.config['MAX_CONTENT_LENGTH'] = 20 * 1024 * 1024
+
+# In-memory rate limiting store (IP -> list of request timestamps)
+rate_limit_store = defaultdict(list)
+
+def rate_limit(limit=10, window=60):
+    def decorator(f):
+        from functools import wraps
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            ip = request.remote_addr
+            now = time()
+            # Clean up timestamps older than the window
+            rate_limit_store[ip] = [t for t in rate_limit_store[ip] if now - t < window]
+            if len(rate_limit_store[ip]) >= limit:
+                return jsonify({"error": "Rate limit exceeded. Please try again later."}), 429
+            rate_limit_store[ip].append(now)
+            return f(*args, **kwargs)
+        return wrapper
+    return decorator
 
 # Twilio Protocol Config
 TWILIO_SID = os.getenv("TWILIO_ACCOUNT_SID")
@@ -37,8 +61,6 @@ w3 = Web3(Web3.HTTPProvider(ALCHEMY_RPC))
 twilio_client = Client(TWILIO_SID, TWILIO_AUTH)
 
 # Identity Vault Storage (The AgriVault)
-# Mapping: Phone Number -> Encrypted JSON Blob
-# This allows farmers to access their same account from any device
 cloud_vaults = {}
 simulated_codes = {}
 bank_accounts = {}
@@ -46,6 +68,7 @@ bank_accounts = {}
 # ---------- IDENTITY VERIFICATION ROUTES ----------
 
 @app.route("/api/otp/send", methods=["POST"])
+@rate_limit(limit=5, window=60)
 def send_otp():
     try:
         data = request.json
@@ -107,67 +130,19 @@ def verify_otp():
         print(f"Verification Engine Error: {str(e)}")
         return jsonify({"error": str(e)}), 400
 
-# ---------- CLOUD SYNC & RECOVERY ROUTES ----------
+# ---------- CLOUD SYNC & RECOVERY ROUTES (DEPRECATED FOR NON-CUSTODIAL WALLET) ----------
 
 @app.route("/api/wallet/save", methods=["POST"])
 def save_wallet():
-    """Backup an encrypted wallet JSON to the cloud."""
-    try:
-        data = request.json
-        phone = data.get("phone", "").replace(" ", "")
-        encrypted_json = data.get("encrypted_json")
-        
-        if not phone or not encrypted_json:
-            return jsonify({"error": "Phone and Wallet JSON required."}), 400
-            
-        # Standardize phone
-        if not phone.startswith("+"): 
-            phone = f"+91{phone}"
-            
-        cloud_vaults[phone] = encrypted_json
-        print(f"✅ Cloud Sync: Vault backed up for {phone}")
-        return jsonify({"status": "success", "message": "Wallet backed up to AgriVault."})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 400
+    return jsonify({
+        "error": "AgriVault cloud sync is deprecated. Keys are managed on-device via non-custodial social login."
+    }), 410
 
 @app.route("/api/wallet/recover", methods=["POST"])
 def recover_wallet():
-    """Retrieve an encrypted wallet JSON after solving an OTP challenge."""
-    try:
-        data = request.json
-        phone = data.get("phone", "").replace(" ", "")
-        code = data.get("code")
-        
-        if not phone.startswith("+"): 
-            phone = f"+91{phone}"
-            
-        # 1. Verify OTP first (Security Checkpoint)
-        # CASE A: Real Twilio check
-        is_valid = False
-        if DEMO_PHONE and phone == DEMO_PHONE:
-            check = twilio_client.verify.v2.services(VERIFY_SERVICE_SID) \
-                .verification_checks \
-                .create(to=phone, code=code)
-            is_valid = (check.status == "approved")
-        # CASE B: Sandbox check
-        else:
-            is_valid = (simulated_codes.get(phone) == str(code))
-            
-        if not is_valid:
-            return jsonify({"error": "Security Breach: Invalid OTP. Identity recovery denied."}), 401
-            
-        # 2. Return the Vault
-        vault = cloud_vaults.get(phone)
-        if not vault:
-            return jsonify({"error": "No cloud backup found for this number."}), 404
-            
-        return jsonify({
-            "status": "success",
-            "encrypted_json": vault,
-            "message": "Identity retrieved from cloud. Enter PIN to localise."
-        })
-    except Exception as e:
-        return jsonify({"error": str(e)}), 400
+    return jsonify({
+        "error": "AgriVault recovery is deprecated. Accounts are recovered via social/SMS login."
+    }), 410
 
 # ---------- MERCHANT BANKING & AGRI-GAS ATM ----------
 
@@ -186,6 +161,22 @@ def bank_withdrawal():
         phone = data.get("phone")
         amount_inr = float(data.get("amount_inr", 0))
         tx_hash = data.get("tx_hash")
+
+        if amount_inr <= 0:
+            return jsonify({"error": "Withdrawal amount must be greater than zero."}), 400
+
+        if not tx_hash:
+            return jsonify({"error": "Transaction hash is required."}), 400
+
+        # On-chain verification of the withdrawal transaction
+        try:
+            receipt = w3.eth.get_transaction_receipt(tx_hash)
+            if receipt is None:
+                return jsonify({"error": "Transaction not found on-chain."}), 400
+            if receipt.status != 1:
+                return jsonify({"error": "On-chain transaction failed."}), 400
+        except Exception as e:
+            return jsonify({"error": f"On-chain verification failed: {str(e)}"}), 400
 
         if not phone.startswith("+"):
             phone = f"+91{phone}"
@@ -230,6 +221,7 @@ def load_eip4337_contract(name):
         return None, None
 
 @app.route("/api/paymaster/sign", methods=["POST"])
+@rate_limit(limit=10, window=60)
 def sign_paymaster_op():
     try:
         data = request.json
@@ -292,6 +284,7 @@ def sign_paymaster_op():
         return jsonify({"error": str(e)}), 400
 
 @app.route("/api/userop/submit", methods=["POST"])
+@rate_limit(limit=10, window=60)
 def submit_userop():
     try:
         data = request.json

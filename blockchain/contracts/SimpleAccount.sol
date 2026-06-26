@@ -54,7 +54,7 @@ contract SimpleAccount is IAccount {
     ) external override onlyEntryPoint returns (uint256 validationData) {
         bytes32 messageHash = MessageHashUtils.toEthSignedMessageHash(userOpHash);
         if (owner != messageHash.recover(userOp.signature)) {
-            return 1; // Signature invalid
+            return 1; // SIG_VALIDATION_FAILED (1)
         }
 
         if (missingAccountFunds > 0) {
@@ -63,5 +63,12 @@ contract SimpleAccount is IAccount {
         }
 
         return 0; // Success
+    }
+
+    /**
+     * @notice Helper view function to query the account's current nonce.
+     */
+    function getNonce() external view returns (uint256) {
+        return entryPoint.getNonce(address(this), 0);
     }
 }

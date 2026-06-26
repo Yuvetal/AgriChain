@@ -46,7 +46,7 @@ flowchart TD
 Traditional Web3 onboarding is a major hurdle. AgroChainMart incorporates **non-custodial account abstraction**:
 * **Phone + PIN Registration:** No MetaMask or wallet extension is required. Users enter their phone number and receive a secure OTP via Twilio SMS.
 * **Non-Custodial Private Keys:** Cryptographic keys are generated locally in the browser, encrypted with the user's secret PIN, and stored in localStorage.
-* **The AgriVault Cloud Backup:** The encrypted wallet JSON blob is backed up to the Flask backend. In case of device migration or browser clearout, users can trigger an OTP-verified restore to retrieve their encrypted vault, restoring local access after entering their PIN.
+* **The AgriVault Cloud Backup [DEPRECATED]:** Previously supported OTP-verified recovery of PIN-encrypted keys on the backend. This has been deprecated in favor of modern non-custodial social login and Multi-Party Computation (MPC) recovery (e.g., Privy or Web3Auth) to ensure zero database dependencies and eliminate XSS/offline brute-force risks.
 * **Agri-Gas ATM & AgroPaymaster:** Instead of forcing users to acquire and hold ETH for gas fees, transactions are compiled as ERC-4337 `UserOperations`. The Flask server acts as a paymaster relayer. It validates operations and signs off via the custom `AgroPaymaster` contract, sponsoring the gas fees to provide a gasless user experience.
 
 ### ⚖️ Smart Escrow & IPFS Evidence Pinning
@@ -55,14 +55,15 @@ To ensure quality control and delivery verification:
 2. **Purchase:** The buyer purchases a batch, locking the purchase price in the `SupplyChainV2` contract's escrow.
 3. **One-Write Packing Video (Video 1):** Before dispatch, the farmer must upload a crop-packing video. The file is pinned to IPFS via Pinata, and its IPFS CID hash is written immutably onto the smart contract listing.
 4. **Dispatch:** The farmer records delivery tracking details (carrier reference) on-chain, changing the batch status to `Dispatched`.
-5. **OTP delivery & Confirm:** Upon delivery, the buyer inspects the goods. If they are satisfied, they share an OTP with the delivery agent. The buyer then invokes `confirmDelivery` (submitting a delivery video hash, Video 2), which releases the escrow funds to the farmer and returns the farmer's listing stake. A **partial release** is also supported if only a portion of the batch meets requirements.
+5. **OTP delivery & Confirm:** Upon delivery, the buyer or their nominated trustee (via `trusteeAddress`) inspects the goods. The buyer or trustee then invokes `confirmDelivery` (submitting a delivery video hash, Video 2), which releases the escrow funds to the farmer and returns the farmer's listing stake. A **partial release** is also supported if only a portion of the batch meets requirements.
 
 ### 🏛️ The Judicial Layer: Hybrid Consensus
-Disputes are resolved through a decentralized court consisting of 5 randomly assigned arbitrators from a verified pool:
-* **Arbitrator Pool & APMC Credentials:** Anyone can apply to become an arbitrator by staking an initial bond (0.01 ETH) and submitting agricultural credentials (e.g., APMC License ID, Name, Phone). Existing active arbitrators vote to approve or deny candidates.
-* **Dispute Escalation:** If crops arrive spoiled, the buyer locks a dispute bond and reports the issue. If the farmer failed to upload a packing video (Video 1), the dispute auto-resolves in the buyer's favor. If Video 1 is present, a dispute is created and 5 arbitrators are assigned.
-* **Arbitration Voting:** Assigned arbitrators review Video 1 (packing) and Video 2 (delivery unboxing) hosted on IPFS. They cast blind votes.
-* **First-to-3 Majority Finality:** The dispute resolves immediately once a side reaches 3 votes.
+Disputes are resolved through a decentralized court consisting of up to 5 arbitrators from a verified pool using a **first-to-vote commit-reveal** mechanism:
+* **Arbitrator Pool & APMC Credentials:** Anyone can apply to become an arbitrator by staking a secure initial bond (1 ETH) and submitting agricultural credentials. The pool is capped at a maximum of `10` active arbitrators. Existing active arbitrators or the admin vote to approve applicants.
+* **Slashing & Willing Withdrawal:** If an arbitrator's rating falls below 3.0, they are disqualified and their entire 1 ETH bond is slashed to the treasury. If they willingly withdraw, their bond is returned proportionally based on their rating: 100% refund for rating >= 5.0, 0% refund for rating <= 3.0, and linear interpolation in between.
+* **Dispute Escalation:** If crops arrive spoiled, the buyer locks a dispute bond and reports the issue. If the farmer failed to upload a packing video (Video 1), the dispute auto-resolves in the buyer's favor. If Video 1 is present, a dispute is created and the first 5 active arbitrators to submit a cryptographic commit are locked in as the jury.
+* **Arbitration Voting (Commit-Reveal):** Arbitrators review Video 1 (packing) and Video 2 (delivery unboxing) hosted on IPFS. They cast blind votes by first committing `keccak256(abi.encodePacked(vote, salt))` and then revealing them, preventing herding and mempool vote-stealing.
+* **First-to-3 Majority Finality:** The dispute resolves immediately once a side reaches 3 revealed votes.
 * **Staking Rewards & Penalties:** 
   * Winning arbitrators split the losing party's bond/stake as a reward.
   * Winning-side arbitrators receive a rating increment (+0.10).
@@ -124,13 +125,9 @@ The backend runs a Flask server on port `5000` to support Twilio OTP, AgriVault 
   * Validates the OTP.
   * **Payload:** `{ "phone": "+91XXXXXXXXXX", "code": "XXXXXX" }`
 
-### 💾 Cloud AgriVault Sync
-* **`POST /api/wallet/save`**
-  * Backs up encrypted wallet JSON.
-  * **Payload:** `{ "phone": "+91XXXXXXXXXX", "encrypted_json": "..." }`
-* **`POST /api/wallet/recover`**
-  * Recovers encrypted wallet JSON.
-  * **Payload:** `{ "phone": "+91XXXXXXXXXX", "code": "XXXXXX" }` (requires valid OTP check)
+### 💾 Cloud AgriVault Sync [DEPRECATED]
+* **`POST /api/wallet/save`** - **Returned status: 410 Gone** (deprecated in favor of Privy/Web3Auth MPC).
+* **`POST /api/wallet/recover`** - **Returned status: 410 Gone** (deprecated).
 
 ### ⛽ ERC-4337 Paymaster Relayer
 * **`POST /api/paymaster/sign`**
@@ -145,7 +142,7 @@ The backend runs a Flask server on port `5000` to support Twilio OTP, AgriVault 
 ### 📹 IPFS Upload
 * **`POST /api/ipfs/upload`**
   * Uploads video files to Pinata.
-  * **Format:** `multipart/form-data` with key `file` containing the video.
+  * **Format:** `multipart/form-data` with key `file` containing the video (strictly capped at 20MB limit on the backend).
   * **Response:** `{ "status": "success", "ipfs_hash": "..." }`
 
 ## 🚀 Installation & Run Guide

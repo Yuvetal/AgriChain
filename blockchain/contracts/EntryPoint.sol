@@ -14,6 +14,8 @@ interface IAgroPaymaster {
 
 contract EntryPoint is IEntryPoint {
     mapping(address => uint256) public deposits;
+    // Account => nonce key => sequence number
+    mapping(address => mapping(uint192 => uint256)) public nonces;
 
     /**
      * @notice Deposit funds for the paymaster or wallet.
@@ -40,6 +42,13 @@ contract EntryPoint is IEntryPoint {
     }
 
     /**
+     * @notice Helper to get the current nonce sequence for a key.
+     */
+    function getNonce(address sender, uint192 key) public view returns (uint256) {
+        return nonces[sender][key];
+    }
+
+    /**
      * @notice Generate a hash for a UserOperation.
      */
     function getUserOpHash(UserOperation calldata userOp) public view override returns (bytes32) {
@@ -60,7 +69,6 @@ contract EntryPoint is IEntryPoint {
 
     /**
      * @notice Execute a batch of UserOperations.
-     * @dev Validates signers and paymasters, deploys accounts, and executes payloads.
      */
     function handleOps(UserOperation[] calldata ops, address payable beneficiary) external override {
         for (uint256 i = 0; i < ops.length; i++) {
@@ -71,7 +79,15 @@ contract EntryPoint is IEntryPoint {
     function _handleOp(UserOperation calldata op, address payable beneficiary) internal {
         bytes32 opHash = getUserOpHash(op);
         
-        // 1. Auto-deploy account if initCode is present
+        // 1. Validate Nonce:
+        // Extract 192-bit key from the upper bits of userOp.nonce, and check sequence
+        uint192 key = uint192(op.nonce >> 64);
+        uint64 seq = uint64(op.nonce);
+        require(nonces[op.sender][key] == seq, "EntryPoint: Invalid nonce sequence");
+        // Increment nonce
+        nonces[op.sender][key]++;
+
+        // 2. Auto-deploy account if initCode is present
         if (op.initCode.length > 0) {
             address factoryAddress = address(bytes20(op.initCode[0:20]));
             bytes calldata factoryData = op.initCode[20:];
@@ -79,22 +95,21 @@ contract EntryPoint is IEntryPoint {
             require(success, "Initcode execution failed");
         }
 
-        // 2. Validate user op on the account
+        // 3. Validate user op on the account
         uint256 valData = IAccount(op.sender).validateUserOp(op, opHash, 0);
-        require(valData == 0, "Account validation failed");
+        require(valData == 0 || (valData & 0xffffffffffffffff == 0), "Account validation failed");
 
-        // 3. Validate paymaster user op if present
+        // 4. Validate paymaster user op if present
         if (op.paymasterAndData.length >= 20) {
             address paymaster = address(bytes20(op.paymasterAndData[0:20]));
             (bytes memory context, uint256 paymasterValData) = IAgroPaymaster(paymaster).validatePaymasterUserOp(op, opHash, 0);
             require(paymasterValData == 0 || (paymasterValData & 0xffffffffffffffff == 0), "Paymaster validation failed");
             
             // Deduct from paymaster deposits if applicable
-            // For testing relayer simulation, we simply verify paymaster balance is non-zero
             require(deposits[paymaster] >= 0, "Paymaster lacks deposit balance");
         }
 
-        // 4. Execute target transaction callData on account
+        // 5. Execute target transaction callData on account
         (bool executeSuccess, ) = op.sender.call(op.callData);
         require(executeSuccess, "Execution failed");
     }

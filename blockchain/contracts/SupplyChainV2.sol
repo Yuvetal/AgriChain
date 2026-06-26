@@ -52,8 +52,9 @@ contract SupplyChainV2 is ReentrancyGuard {
         uint expiryTimestamp;
         bytes32 video1Hash;       // IPFS CID hash - one-write, immutable once set
         string trackingId;        // Carrier tracking number submitted at dispatch
-        string trusteePhone;      // Nominated delivery recipient's phone
+        address trusteeAddress;   // Nominated delivery recipient's Ethereum address
         bytes32 trusteeConsentHash; // IPFS hash of buyer's consent video for trustee
+        uint dispatchTimestamp;   // Timestamp of dispatch
     }
 
     struct Dispute {
@@ -64,7 +65,6 @@ contract SupplyChainV2 is ReentrancyGuard {
         uint votesForBuyer;
         bool resolved;
         uint bondAmount;          // Buyer's dispute bond locked here
-        address[5] assignedArbitrators;
     }
 
     struct Arbitrator {
@@ -93,6 +93,8 @@ contract SupplyChainV2 is ReentrancyGuard {
     uint public constant ARBITRATOR_MIN_RATING     = 300; // 3.0 - below this = removed
     uint public constant RATING_INCREMENT          = 10;  // +0.10 per majority vote
     uint public constant RATING_DECREMENT          = 20;  // −0.20 per minority vote
+    uint public constant ARBITRATOR_BOND           = 1 ether;
+    uint public constant MAX_POOL_SIZE             = 10;
 
     // ================================================================
     // STATE VARIABLES
@@ -108,6 +110,13 @@ contract SupplyChainV2 is ReentrancyGuard {
     mapping(uint => mapping(address => bool)) public hasVotedOnDispute;
     // true = voted for farmer, false = voted for buyer
     mapping(uint => mapping(address => bool)) public arbitratorVoteForFarmer;
+
+    // First-to-vote commit-reveal state
+    mapping(uint => mapping(address => bytes32)) public arbitratorCommits;
+    mapping(uint => mapping(address => bool)) public hasCommittedOnDispute;
+    mapping(uint => mapping(address => bool)) public hasRevealedOnDispute;
+    mapping(uint => address[]) public disputeCommittedArbitrators;
+    mapping(address => uint) public claimableArbitratorRewards;
 
     // Arbitrator pool
     address[]                        public arbitratorPool;
@@ -134,7 +143,7 @@ contract SupplyChainV2 is ReentrancyGuard {
 
     event BatchCreated(uint indexed batchId, string name, uint quantity, uint pricePerKg, address indexed farmer, string location, uint expiryTimestamp);
     event BatchPurchased(uint indexed batchId, address indexed buyer, uint amount);
-    event TrusteeNominated(uint indexed batchId, address indexed buyer, string trusteePhone);
+    event TrusteeNominated(uint indexed batchId, address indexed buyer, address trusteeAddress);
     event PackingVideoUploaded(uint indexed batchId, bytes32 video1Hash);
     event BatchDispatched(uint indexed batchId, string trackingId);
     event DeliveryConfirmed(uint indexed batchId, address indexed buyer, uint farmerPayout, bytes32 video2Hash);
@@ -149,7 +158,6 @@ contract SupplyChainV2 is ReentrancyGuard {
     event ArbitratorAdded(address indexed arbitrator);
     event ArbitratorRemoved(address indexed arbitrator, string reason);
     event ArbitratorApplied(address indexed applicant, string name, string apmcId, string phone);
-    event DisputeResolved(uint indexed disputeId, bool farmerWon, string reason);
     event FarmerSponsored(address indexed farmer);
 
     // ================================================================
@@ -211,16 +219,20 @@ contract SupplyChainV2 is ReentrancyGuard {
     /**
      * @notice Admin adds an arbitrator during bootstrap phase.
      */
-    function addArbitrator(address _arbitrator) external onlyAdmin {
+    function addArbitrator(address _arbitrator) external payable onlyAdmin {
+        require(msg.value == ARBITRATOR_BOND, "Must deposit arbitrator bond");
+        require(arbitratorPool.length < MAX_POOL_SIZE, "Arbitrator pool full");
         _addArbitratorInternal(_arbitrator);
     }
 
     /**
      * @notice Any address can apply to become an arbitrator by submitting transparent credentials.
      */
-    function applyAsArbitrator(string memory _name, string memory _apmcId, string memory _phone) external {
+    function applyAsArbitrator(string memory _name, string memory _apmcId, string memory _phone) external payable {
+        require(arbitratorPool.length < MAX_POOL_SIZE, "Arbitrator pool full");
         require(!isArbitrator[msg.sender], "Already an arbitrator");
         require(arbitratorApplications[msg.sender] == bytes32(0), "Application already pending");
+        require(msg.value == ARBITRATOR_BOND, "Must deposit arbitrator bond");
         require(bytes(_name).length > 0 && bytes(_apmcId).length > 0 && bytes(_phone).length > 0, "All credentials required");
         
         // We still hash it locally to act as a state-tracking unique identifier without taking up massive bytes space
@@ -281,14 +293,20 @@ contract SupplyChainV2 is ReentrancyGuard {
 
     function _promoteApplicant(address _applicant) internal {
         _addArbitratorInternal(_applicant);
-        _deleteApplication(_applicant);
+        // Clear application parameters without refunding (bond is locked as arbitrator stake)
+        delete arbitratorApplications[_applicant];
+        delete applicantApprovalCount[_applicant];
+        delete applicantRejectionCount[_applicant];
     }
 
     function _deleteApplication(address _applicant) internal {
         delete arbitratorApplications[_applicant];
         delete applicantApprovalCount[_applicant];
         delete applicantRejectionCount[_applicant];
-        // Note: hasVotedOnApplicant is not cleared to prevent double-voting if they re-apply immediately
+        
+        // Refund the 1 ETH bond to the rejected applicant
+        (bool success, ) = payable(_applicant).call{value: ARBITRATOR_BOND}("");
+        require(success, "Refund of applicant bond failed");
     }
 
     function _addArbitratorInternal(address _arbitrator) internal {
@@ -305,10 +323,69 @@ contract SupplyChainV2 is ReentrancyGuard {
         emit ArbitratorAdded(_arbitrator);
     }
 
-    function _removeArbitrator(address _arbitrator, string memory _reason) internal {
+    function _removeArbitratorInternal(address _arbitrator, string memory _reason) internal {
         isArbitrator[_arbitrator] = false;
         arbitrators[_arbitrator].isActive = false;
+
+        // Remove from arbitratorPool array using swap-and-pop
+        uint poolSize = arbitratorPool.length;
+        for (uint i = 0; i < poolSize; i++) {
+            if (arbitratorPool[i] == _arbitrator) {
+                arbitratorPool[i] = arbitratorPool[poolSize - 1];
+                arbitratorPool.pop();
+                break;
+            }
+        }
+
+        // Slash entire bond to the adminTreasury
+        (bool success, ) = payable(adminTreasury).call{value: ARBITRATOR_BOND}("");
+        require(success, "Slashed bond transfer to treasury failed");
+
         emit ArbitratorRemoved(_arbitrator, _reason);
+    }
+
+    /**
+     * @notice Allows an arbitrator to willingly withdraw from the pool and recover their scaled bond.
+     */
+    function withdrawArbitrator() external nonReentrant {
+        require(isArbitrator[msg.sender], "Not a registered arbitrator");
+        require(arbitrators[msg.sender].isActive, "Arbitrator already inactive");
+
+        isArbitrator[msg.sender] = false;
+        arbitrators[msg.sender].isActive = false;
+
+        // Remove from arbitratorPool array using swap-and-pop
+        uint poolSize = arbitratorPool.length;
+        for (uint i = 0; i < poolSize; i++) {
+            if (arbitratorPool[i] == msg.sender) {
+                arbitratorPool[i] = arbitratorPool[poolSize - 1];
+                arbitratorPool.pop();
+                break;
+            }
+        }
+
+        uint rating = arbitrators[msg.sender].rating;
+        uint refundAmount = 0;
+
+        if (rating >= 500) {
+            refundAmount = ARBITRATOR_BOND;
+        } else if (rating > 300) {
+            // Linear interpolation between 3.0 (0% refund) and 5.0 (100% refund)
+            refundAmount = ((rating - 300) * ARBITRATOR_BOND) / 200;
+        }
+
+        uint slashedAmount = ARBITRATOR_BOND - refundAmount;
+
+        if (refundAmount > 0) {
+            (bool s1, ) = payable(msg.sender).call{value: refundAmount}("");
+            require(s1, "Arbitrator bond refund failed");
+        }
+        if (slashedAmount > 0) {
+            (bool s2, ) = payable(adminTreasury).call{value: slashedAmount}("");
+            require(s2, "Slashed bond transfer failed");
+        }
+
+        emit ArbitratorRemoved(msg.sender, "Willing withdrawal");
     }
 
     // ================================================================
@@ -385,8 +462,9 @@ contract SupplyChainV2 is ReentrancyGuard {
             expiryTimestamp: _expiryTimestamp,
             video1Hash: bytes32(0),
             trackingId: "",
-            trusteePhone: "",
-            trusteeConsentHash: bytes32(0)
+            trusteeAddress: address(0),
+            trusteeConsentHash: bytes32(0),
+            dispatchTimestamp: 0
         });
 
         emit BatchCreated(batchCount, _name, _quantity, _pricePerKg, msg.sender, _location, _expiryTimestamp);
@@ -443,8 +521,9 @@ contract SupplyChainV2 is ReentrancyGuard {
             expiryTimestamp: parent.expiryTimestamp,
             video1Hash: bytes32(0),
             trackingId: "",
-            trusteePhone: "",
-            trusteeConsentHash: bytes32(0)
+            trusteeAddress: address(0),
+            trusteeConsentHash: bytes32(0),
+            dispatchTimestamp: 0
         });
 
         emit BatchCreated(batchCount, parent.name, _quantity, parent.pricePerKg, parent.farmer, parent.location, parent.expiryTimestamp);
@@ -457,38 +536,36 @@ contract SupplyChainV2 is ReentrancyGuard {
 
     /**
      * @notice Buyer nominates a trusted person to receive the delivery on their behalf.
-     * @param _trusteePhone       Phone number of the trustee.
-     * @param _consentHash        IPFS hash of buyer's consent video (buyer on camera, explicitly delegating).
+     * @param _trusteeAddress     Ethereum address of the trustee.
+     * @param _consentHash        IPFS hash of buyer's consent video.
      */
     function nominateTrustee(
         uint _batchId,
-        string memory _trusteePhone,
+        address _trusteeAddress,
         bytes32 _consentHash
     ) external {
         Batch storage batch = batches[_batchId];
         require(batch.id != 0, "Batch does not exist");
         require(batch.status == Status.Sold || batch.status == Status.Dispatched, "Invalid state");
         require(msg.sender == batch.buyer, "Only buyer can nominate a trustee");
-        require(bytes(_trusteePhone).length > 0, "Trustee phone required");
+        require(_trusteeAddress != address(0), "Trustee address required");
         require(_consentHash != bytes32(0), "Consent video hash required");
 
-        batch.trusteePhone = _trusteePhone;
+        batch.trusteeAddress = _trusteeAddress;
         batch.trusteeConsentHash = _consentHash;
 
-        emit TrusteeNominated(_batchId, msg.sender, _trusteePhone);
+        emit TrusteeNominated(_batchId, msg.sender, _trusteeAddress);
     }
 
     /**
      * @notice Farmer uploads pre-packing video to establish baseline quality on-chain.
-     * @dev ONE-WRITE RULE: Once submitted, this hash is permanently locked. Cannot be overwritten.
-     * @param _video1Hash IPFS CID hash of the pre-packing video.
      */
     function uploadPackingVideo(uint _batchId, bytes32 _video1Hash) external {
         Batch storage batch = batches[_batchId];
         require(batch.id != 0, "Batch does not exist");
         require(batch.status == Status.Sold, "Must be in Sold status");
         require(msg.sender == batch.farmer, "Only farmer can upload packing video");
-        require(batch.video1Hash == bytes32(0), "Video already submitted. One-write rule: cannot overwrite.");
+        require(batch.video1Hash == bytes32(0), "Video already submitted.");
         require(_video1Hash != bytes32(0), "Invalid IPFS hash");
 
         batch.video1Hash = _video1Hash;
@@ -498,7 +575,6 @@ contract SupplyChainV2 is ReentrancyGuard {
 
     /**
      * @notice Farmer confirms dispatch, providing an immutable carrier tracking reference.
-     * @param _trackingId Carrier tracking number (Blue Dart, India Post, DTDC, etc).
      */
     function confirmDispatch(uint _batchId, string memory _trackingId) external {
         Batch storage batch = batches[_batchId];
@@ -506,9 +582,11 @@ contract SupplyChainV2 is ReentrancyGuard {
         require(batch.status == Status.Sold, "Must be in Sold status");
         require(msg.sender == batch.farmer, "Only farmer can confirm dispatch");
         require(bytes(_trackingId).length > 0, "Tracking ID is required");
+        require(batch.video1Hash != bytes32(0), "Must upload packing video before dispatch");
 
         batch.status = Status.Dispatched;
         batch.trackingId = _trackingId;
+        batch.dispatchTimestamp = block.timestamp;
 
         emit BatchDispatched(_batchId, _trackingId);
     }
@@ -518,15 +596,13 @@ contract SupplyChainV2 is ReentrancyGuard {
     // ================================================================
 
     /**
-     * @notice Buyer confirms full delivery after OTP verification off-chain.
-     * @dev Called by buyer after inspecting goods and voluntarily sharing OTP with driver.
-     * @param _video2Hash IPFS hash of delivery-scene video recorded by driver.
+     * @notice Buyer or Nominated Trustee confirms full delivery after OTP verification off-chain.
      */
     function confirmDelivery(uint _batchId, bytes32 _video2Hash) external nonReentrant {
         Batch storage batch = batches[_batchId];
         require(batch.id != 0, "Batch does not exist");
         require(batch.status == Status.Dispatched, "Goods not dispatched yet");
-        require(msg.sender == batch.buyer, "Only buyer can confirm delivery");
+        require(msg.sender == batch.buyer || msg.sender == batch.trusteeAddress, "Only buyer or trustee can confirm delivery");
 
         batch.status = Status.Confirmed;
 
@@ -553,14 +629,11 @@ contract SupplyChainV2 is ReentrancyGuard {
         (bool s2, ) = payable(adminTreasury).call{value: protocolFee}("");
         require(s2, "Protocol fee transfer failed");
 
-        emit DeliveryConfirmed(_batchId, batch.buyer, farmerPayout, _video2Hash);
+        emit DeliveryConfirmed(_batchId, msg.sender, farmerPayout, _video2Hash);
     }
 
     /**
-     * @notice Buyer confirms partial delivery - proportional escrow released.
-     * @dev Farmer's full stake is returned regardless of accepted quantity.
-     * @param _acceptedQuantity How many kg the buyer accepts as correct.
-     * @param _video2Hash       IPFS hash of delivery-scene video.
+     * @notice Buyer or Nominated Trustee confirms partial delivery - proportional escrow released.
      */
     function partialConfirm(
         uint _batchId,
@@ -570,7 +643,7 @@ contract SupplyChainV2 is ReentrancyGuard {
         Batch storage batch = batches[_batchId];
         require(batch.id != 0, "Batch does not exist");
         require(batch.status == Status.Dispatched, "Goods not dispatched yet");
-        require(msg.sender == batch.buyer, "Only buyer can confirm delivery");
+        require(msg.sender == batch.buyer || msg.sender == batch.trusteeAddress, "Only buyer or trustee can confirm delivery");
         require(_acceptedQuantity > 0 && _acceptedQuantity < batch.quantity, "Invalid partial quantity");
         require(_video2Hash != bytes32(0), "Delivery video hash required");
 
@@ -685,7 +758,6 @@ contract SupplyChainV2 is ReentrancyGuard {
     /**
      * @notice Files a dispute. Requires a dispute bond from buyer.
      * @dev AUTO-RESOLVES in buyer's favour if farmer uploaded no packing video.
-     * @param _video2Hash IPFS hash of delivery-scene evidence (bytes32(0) if goods never arrived).
      */
     function reportSpoilt(uint _batchId, bytes32 _video2Hash) external payable nonReentrant {
         Batch storage batch = batches[_batchId];
@@ -726,8 +798,6 @@ contract SupplyChainV2 is ReentrancyGuard {
 
         disputeCount++;
 
-        address[5] memory selected = _selectArbitrators(_batchId);
-
         disputes[disputeCount] = Dispute({
             batchId: _batchId,
             video2Hash: _video2Hash,
@@ -735,8 +805,7 @@ contract SupplyChainV2 is ReentrancyGuard {
             votesForFarmer: 0,
             votesForBuyer: 0,
             resolved: false,
-            bondAmount: msg.value,
-            assignedArbitrators: selected
+            bondAmount: msg.value
         });
 
         batch.status = Status.Disputed;
@@ -745,27 +814,38 @@ contract SupplyChainV2 is ReentrancyGuard {
     }
 
     /**
-     * @notice Assigned arbitrator submits their blind vote.
-     * @dev COMPETITION MODEL: First side to 3 votes wins. Dispute auto-finalizes immediately.
-     *      Arbitrators who didn't vote before game ended get no rating change.
-     *      Arbitrators who voted for the losing side get a rating penalty.
-     *      Payment per winner = losing_party_stake / 3 (always 3 winners in this model).
-     * @param _votesForFarmer true = farmer wins, false = buyer wins.
+     * @notice Arbitrators commit their secret vote hash.
+     * @dev The first 5 active arbitrators to commit form the jury.
      */
-    function submitArbitratorVote(uint _disputeId, bool _votesForFarmer) external onlyActiveArbitrator nonReentrant {
+    function commitArbitratorVote(uint _disputeId, bytes32 _commitHash) external onlyActiveArbitrator nonReentrant {
         Dispute storage dispute = disputes[_disputeId];
         require(!dispute.resolved, "Dispute already resolved");
-        require(!hasVotedOnDispute[_disputeId][msg.sender], "Already voted on this dispute");
+        require(!hasCommittedOnDispute[_disputeId][msg.sender], "Already committed on this dispute");
+        
+        address[] storage jury = disputeCommittedArbitrators[_disputeId];
+        require(jury.length < 5, "Jury pool of 5 already filled");
 
-        bool isAssigned = false;
-        for (uint i = 0; i < 5; i++) {
-            if (dispute.assignedArbitrators[i] == msg.sender) {
-                isAssigned = true;
-                break;
-            }
-        }
-        require(isAssigned, "Not assigned to this dispute");
+        hasCommittedOnDispute[_disputeId][msg.sender] = true;
+        arbitratorCommits[_disputeId][msg.sender] = _commitHash;
+        jury.push(msg.sender);
 
+        emit ArbitratorVoteSubmitted(_disputeId, msg.sender);
+    }
+
+    /**
+     * @notice Committed arbitrators reveal their plaintext votes.
+     * @dev Once 3 winning votes are revealed, the dispute auto-finalizes.
+     */
+    function revealArbitratorVote(uint _disputeId, bool _votesForFarmer, uint256 _salt) external onlyActiveArbitrator nonReentrant {
+        Dispute storage dispute = disputes[_disputeId];
+        require(!dispute.resolved, "Dispute already resolved");
+        require(hasCommittedOnDispute[_disputeId][msg.sender], "Did not commit a vote for this dispute");
+        require(!hasRevealedOnDispute[_disputeId][msg.sender], "Already revealed vote");
+
+        bytes32 expectedHash = keccak256(abi.encodePacked(_votesForFarmer, _salt));
+        require(arbitratorCommits[_disputeId][msg.sender] == expectedHash, "Invalid commit reveal parameters");
+
+        hasRevealedOnDispute[_disputeId][msg.sender] = true;
         hasVotedOnDispute[_disputeId][msg.sender] = true;
         arbitratorVoteForFarmer[_disputeId][msg.sender] = _votesForFarmer;
 
@@ -775,9 +855,7 @@ contract SupplyChainV2 is ReentrancyGuard {
             dispute.votesForBuyer++;
         }
 
-        emit ArbitratorVoteSubmitted(_disputeId, msg.sender);
-
-        // ── Auto-finalize: first side to 3 votes wins immediately ───────────────────
+        // Auto-finalize: first side to 3 votes wins immediately
         if (dispute.votesForFarmer >= 3 || dispute.votesForBuyer >= 3) {
             _finalizeDisputeInternal(_disputeId);
         }
@@ -785,7 +863,6 @@ contract SupplyChainV2 is ReentrancyGuard {
 
     /**
      * @notice Safety-valve: manually finalize a dispute if a side has already reached 3 votes.
-     * @dev In normal flow, finalization is triggered automatically inside submitArbitratorVote.
      */
     function finalizeDispute(uint _disputeId) external nonReentrant {
         Dispute storage dispute = disputes[_disputeId];
@@ -800,9 +877,6 @@ contract SupplyChainV2 is ReentrancyGuard {
     /**
      * @notice Internal dispute resolution logic.
      * @dev Payment per winning arbitrator = losing_party_stake ÷ 3.
-     *      Arbitrators who did not vote before game ended: no rating change.
-     *      Losing-side voters: rating decrement.
-     *      Winning-side voters: rating increment + payout.
      */
     function _finalizeDisputeInternal(uint _disputeId) internal {
         Dispute storage dispute = disputes[_disputeId];
@@ -833,11 +907,12 @@ contract SupplyChainV2 is ReentrancyGuard {
             require(s1, "Buyer refund failed");
         }
 
-        // Update arbitrator ratings and pay winners
-        // Arbitrators who did not vote before game ended: skipped (no rating change)
-        for (uint i = 0; i < 5; i++) {
-            address arb = dispute.assignedArbitrators[i];
-            if (!hasVotedOnDispute[_disputeId][arb]) {
+        // Update arbitrator ratings and reward winners (Pull withdrawal pattern)
+        address[] storage jury = disputeCommittedArbitrators[_disputeId];
+        uint juryLength = jury.length;
+        for (uint i = 0; i < juryLength; i++) {
+            address arb = jury[i];
+            if (!hasRevealedOnDispute[_disputeId][arb]) {
                 continue; // Did not participate in time - no consequence
             }
 
@@ -846,10 +921,9 @@ contract SupplyChainV2 is ReentrancyGuard {
 
             if (isWinner) {
                 arbitrators[arb].rating       += RATING_INCREMENT;
+                claimableArbitratorRewards[arb] += payPerWinner;
                 arbitrators[arb].totalEarnings += payPerWinner;
                 arbitrators[arb].disputesResolved++;
-                (bool s2, ) = payable(arb).call{value: payPerWinner}("");
-                require(s2, "Arbitrator payment failed");
             } else {
                 arbitrators[arb].disputesResolved++;
                 _decrementArbitratorRating(arb); // Penalise minority voters
@@ -861,7 +935,18 @@ contract SupplyChainV2 is ReentrancyGuard {
     }
 
     /**
-     * @notice Farmer claims escrowed funds after buyer is permanently silent past expiry + grace period.
+     * @notice Exposes reward withdrawal for arbitrators.
+     */
+    function claimArbitratorRewards() external nonReentrant {
+        uint reward = claimableArbitratorRewards[msg.sender];
+        require(reward > 0, "No rewards to claim");
+        claimableArbitratorRewards[msg.sender] = 0;
+        (bool success, ) = payable(msg.sender).call{value: reward}("");
+        require(success, "Reward transfer failed");
+    }
+
+    /**
+     * @notice Farmer claims escrowed funds after buyer is permanently silent past dispatch + grace period.
      */
     function claimAbandoned(uint _batchId) external nonReentrant {
         Batch storage batch = batches[_batchId];
@@ -869,7 +954,7 @@ contract SupplyChainV2 is ReentrancyGuard {
         require(batch.status == Status.Dispatched, "Must be in Dispatched status");
         require(msg.sender == batch.farmer, "Only farmer can claim abandoned batch");
         require(
-            block.timestamp > batch.expiryTimestamp + ABANDON_GRACE_PERIOD,
+            block.timestamp > batch.dispatchTimestamp + ABANDON_GRACE_PERIOD,
             "Grace period has not expired yet"
         );
 
@@ -919,39 +1004,6 @@ contract SupplyChainV2 is ReentrancyGuard {
         return pctBond > MIN_DISPUTE_BOND ? pctBond : MIN_DISPUTE_BOND;
     }
 
-    /**
-     * @notice Pseudo-random arbitrator selection from active pool.
-     * @dev Uses block.prevrandao (post-merge) for entropy. Not cryptographically secure
-     *      but sufficient for this use case since outcomes are human-reviewed.
-     */
-    function _selectArbitrators(uint _batchId) internal view returns (address[5] memory) {
-        address[5] memory selected;
-        uint count = 0;
-        uint poolSize = arbitratorPool.length;
-
-        uint seed = uint(keccak256(abi.encodePacked(block.timestamp, block.prevrandao, _batchId, msg.sender)));
-
-        for (uint i = 0; i < poolSize && count < 5; i++) {
-            uint idx = (seed + i * 7919) % poolSize; // prime-stride for better distribution
-            address candidate = arbitratorPool[idx];
-
-            if (!arbitrators[candidate].isActive || arbitrators[candidate].rating < ARBITRATOR_MIN_RATING) {
-                continue;
-            }
-
-            bool duplicate = false;
-            for (uint j = 0; j < count; j++) {
-                if (selected[j] == candidate) { duplicate = true; break; }
-            }
-            if (!duplicate) {
-                selected[count++] = candidate;
-            }
-        }
-
-        require(count == 5, "Could not select 5 eligible arbitrators - pool may be too small");
-        return selected;
-    }
-
     function _decrementArbitratorRating(address _arb) internal {
         if (arbitrators[_arb].rating >= RATING_DECREMENT) {
             arbitrators[_arb].rating -= RATING_DECREMENT;
@@ -959,7 +1011,7 @@ contract SupplyChainV2 is ReentrancyGuard {
             arbitrators[_arb].rating = 0;
         }
         if (arbitrators[_arb].rating < ARBITRATOR_MIN_RATING) {
-            _removeArbitrator(_arb, "Rating fell below minimum threshold (3.0)");
+            _removeArbitratorInternal(_arb, "Rating fell below minimum threshold (3.0)");
         }
     }
 
@@ -983,8 +1035,8 @@ contract SupplyChainV2 is ReentrancyGuard {
         return arbitrators[_arb];
     }
 
-    function getDisputeArbitrators(uint _disputeId) external view returns (address[5] memory) {
-        return disputes[_disputeId].assignedArbitrators;
+    function getDisputeArbitrators(uint _disputeId) external view returns (address[] memory) {
+        return disputeCommittedArbitrators[_disputeId];
     }
 
     function getArbitratorPoolSize() external view returns (uint) {

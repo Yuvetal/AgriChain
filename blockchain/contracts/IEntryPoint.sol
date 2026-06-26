@@ -25,6 +25,11 @@ interface IEntryPoint {
     function getUserOpHash(UserOperation calldata userOp) external view returns (bytes32);
 
     /**
+     * @notice Helper to get the current nonce sequence for a key.
+     */
+    function getNonce(address sender, uint192 key) external view returns (uint256);
+
+    /**
      * @notice Execute a batch of UserOperations.
      */
     function handleOps(UserOperation[] calldata ops, address payable beneficiary) external;
