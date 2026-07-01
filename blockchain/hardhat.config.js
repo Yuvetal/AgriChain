@@ -18,6 +18,9 @@ module.exports = {
     },
   },
   networks: {
+    hardhat: {
+      allowUnlimitedContractSize: true,
+    },
     sepolia: {
       url: SEPOLIA_RPC_URL,
       accounts: PRIVATE_KEY ? [PRIVATE_KEY] : [],

@@ -12,7 +12,17 @@ describe("SupplyChainV2 Protocol Upgrades", function () {
     farmer = signers[1];
     buyer = signers[2];
     trustee = signers[3];
-    arbitrators = signers.slice(4, 15); // 11 addresses for arbitrators
+    arbitrators = signers.slice(4, 20); // 16 addresses for arbitrators
+
+    const MockAggregator = await ethers.getContractFactory("MockAggregator");
+    const mockAggregator = await MockAggregator.deploy();
+    await mockAggregator.waitForDeployment();
+
+    const mockCode = await ethers.provider.getCode(await mockAggregator.getAddress());
+    await ethers.provider.send("hardhat_setCode", [
+      "0x694AA1769357215DE4FAC081bf1f309aDC325306",
+      mockCode
+    ]);
 
     const SupplyChainV2 = await ethers.getContractFactory("SupplyChainV2");
     supplyChain = await SupplyChainV2.deploy();
@@ -33,21 +43,22 @@ describe("SupplyChainV2 Protocol Upgrades", function () {
         })
       ).to.not.be.reverted;
     });
-    it("Should enforce MAX_POOL_SIZE = 10 for arbitrator pool", async function () {
-      // Admin adds 10 arbitrators to fill the pool
-      for (let i = 0; i < 10; i++) {
+
+    it("Should enforce MAX_POOL_SIZE = 15 for arbitrator pool", async function () {
+      // Admin adds 15 arbitrators to fill the pool
+      for (let i = 0; i < 15; i++) {
         await supplyChain.connect(admin).addArbitrator(arbitrators[i].address, {
           value: ethers.parseEther("1.0")
         });
       }
 
-      expect(await supplyChain.getArbitratorPoolSize()).to.equal(10);
+      expect(await supplyChain.getArbitratorPoolSize()).to.equal(15);
 
-      // 11th applicant should fail application
+      // 16th applicant should fail application
       const signers = await ethers.getSigners();
-      const extraArb = signers[15];
+      const extraArb = signers[19];
       await expect(
-        supplyChain.connect(extraArb).applyAsArbitrator("Arb11", "APMC011", "1234567890", {
+        supplyChain.connect(extraArb).applyAsArbitrator("Arb16", "APMC016", "1234567890", {
           value: ethers.parseEther("1.0")
         })
       ).to.be.revertedWith("Arbitrator pool full");
@@ -131,8 +142,8 @@ describe("SupplyChainV2 Protocol Upgrades", function () {
     let disputeId = 1;
 
     beforeEach(async function () {
-      // Fill the arbitrator pool with 5 active arbitrators
-      for (let i = 0; i < 5; i++) {
+      // Fill the arbitrator pool with 8 active arbitrators (needed for 7 jury seats)
+      for (let i = 0; i < 8; i++) {
         await supplyChain.connect(admin).addArbitrator(arbitrators[i].address, {
           value: ethers.parseEther("1.0")
         });
@@ -156,33 +167,26 @@ describe("SupplyChainV2 Protocol Upgrades", function () {
       });
     });
 
-    it("Should allow the first 5 arbitrators to commit and resolve immediately once a side reaches 3 votes", async function () {
+    it("Should allow the first 7 arbitrators to commit and resolve immediately once a side reaches 3 votes", async function () {
       // 1. Commit phase
       const salt = 12345;
-      const votes = [true, true, true, false, false]; // 3 for farmer, 2 for buyer
+      const votes = [1, 1, 1, 2, 2, 2, 3]; // 1 = Farmer, 2 = Buyer, 3 = Neither
       const commits = [];
 
-      for (let i = 0; i < 5; i++) {
+      for (let i = 0; i < 7; i++) {
         const commitHash = ethers.solidityPackedKeccak256(
-          ["bool", "uint256"],
+          ["uint8", "uint256"],
           [votes[i], salt]
         );
         commits.push(commitHash);
         await supplyChain.connect(arbitrators[i]).commitArbitratorVote(disputeId, commitHash);
       }
 
-      // 6th arbitrator should not be able to commit (jury limit is 5)
-      const commit6 = ethers.solidityPackedKeccak256(["bool", "uint256"], [true, salt]);
-      const signers = await ethers.getSigners();
-      const arb6 = signers[9]; // arbitrators pool is signers[4..14]. arbitrators[5] = signers[9]
-      
-      // Approve arb6 as active arbitrator first
-      await supplyChain.connect(admin).addArbitrator(arb6.address, {
-        value: ethers.parseEther("1.0")
-      });
+      // 8th arbitrator should not be able to commit (jury limit is 7)
+      const commit8 = ethers.solidityPackedKeccak256(["uint8", "uint256"], [1, salt]);
       await expect(
-        supplyChain.connect(arb6).commitArbitratorVote(disputeId, commit6)
-      ).to.be.revertedWith("Jury pool of 5 already filled");
+        supplyChain.connect(arbitrators[7]).commitArbitratorVote(disputeId, commit8)
+      ).to.be.revertedWith("Jury pool of 7 already filled");
 
       // 2. Reveal phase
       // Reveal 1 (farmer)
@@ -190,7 +194,7 @@ describe("SupplyChainV2 Protocol Upgrades", function () {
       // Reveal 2 (farmer)
       await supplyChain.connect(arbitrators[1]).revealArbitratorVote(disputeId, votes[1], salt);
       
-      // Farmer does not win yet (only 2 votes)
+      // Dispute is still unresolved (only 2 votes)
       let dispute = await supplyChain.disputes(disputeId);
       expect(dispute.resolved).to.be.false;
 
@@ -201,6 +205,187 @@ describe("SupplyChainV2 Protocol Upgrades", function () {
 
       dispute = await supplyChain.disputes(disputeId);
       expect(dispute.resolved).to.be.true;
+    });
+
+    it("Should split escrow and pooled stakes 5-way when 'Neither' (option 3) wins", async function () {
+      // 1. Commit phase
+      const salt = 54321;
+      const votes = [3, 3, 3, 1, 1, 2, 2]; // 3 voters for 'Neither'
+      
+      for (let i = 0; i < 7; i++) {
+        const commitHash = ethers.solidityPackedKeccak256(
+          ["uint8", "uint256"],
+          [votes[i], salt]
+        );
+        await supplyChain.connect(arbitrators[i]).commitArbitratorVote(disputeId, commitHash);
+      }
+
+      // Track balances before resolution
+      const buyerBalanceBefore = await ethers.provider.getBalance(buyer.address);
+      const farmerBalanceBefore = await ethers.provider.getBalance(farmer.address);
+
+      // 2. Reveal 'Neither' votes to resolve dispute
+      await supplyChain.connect(arbitrators[0]).revealArbitratorVote(disputeId, votes[0], salt);
+      await supplyChain.connect(arbitrators[1]).revealArbitratorVote(disputeId, votes[1], salt);
+      
+      // The 3rd 'Neither' reveal resolves the dispute
+      await supplyChain.connect(arbitrators[2]).revealArbitratorVote(disputeId, votes[2], salt);
+
+      // Verify dispute resolution status
+      const dispute = await supplyChain.disputes(disputeId);
+      expect(dispute.resolved).to.be.true;
+
+      // Verify batch status is set to FarmerWins (Status = 6)
+      const batch = await supplyChain.batches(batchId);
+      expect(batch.status).to.equal(6); // FarmerWins
+
+      // Math:
+      // totalPool = farmer_stake + buyer_dispute_bond = 0.05 ETH + 0.05 ETH = 0.10 ETH
+      // part = 0.10 ETH / 5 = 0.02 ETH
+      // Farmer payout = escrow (1.0 ETH) + part (0.02 ETH) = 1.02 ETH
+      // Buyer payout = part (0.02 ETH)
+      
+      const buyerBalanceAfter = await ethers.provider.getBalance(buyer.address);
+      const farmerBalanceAfter = await ethers.provider.getBalance(farmer.address);
+
+      expect(buyerBalanceAfter - buyerBalanceBefore).to.be.closeTo(
+        ethers.parseEther("0.02"),
+        ethers.parseEther("0.001")
+      );
+
+      expect(farmerBalanceAfter - farmerBalanceBefore).to.be.closeTo(
+        ethers.parseEther("1.02"),
+        ethers.parseEther("0.001")
+      );
+
+      // Check arbitrator rewards
+      // Arbitrators 0, 1, and 2 each voted 'Neither' (winner), so they should receive part (0.02 ETH)
+      expect(await supplyChain.claimableArbitratorRewards(arbitrators[0].address)).to.equal(ethers.parseEther("0.02"));
+      expect(await supplyChain.claimableArbitratorRewards(arbitrators[1].address)).to.equal(ethers.parseEther("0.02"));
+      expect(await supplyChain.claimableArbitratorRewards(arbitrators[2].address)).to.equal(ethers.parseEther("0.02"));
+    });
+  });
+
+  describe("Fiat On/Off-Ramp", function () {
+    it("Should allow admin to update USD to INR rate", async function () {
+      await expect(supplyChain.connect(farmer).setUsdToInrRate(85)).to.be.revertedWith("Only Admin Treasury");
+      await supplyChain.connect(admin).setUsdToInrRate(85);
+      expect(await supplyChain.usdToInrRate()).to.equal(85);
+    });
+
+    it("Should request on-ramp and lock rate based on Chainlink price feed", async function () {
+      // Mock price is $3000 / ETH. Rate is 83. So ETH price in INR is 3000 * 83 = 249,000 INR/ETH.
+      // We request conversion of 249,000 INR (249000 * 10^18).
+      // Required ETH should be exactly 1 ETH (10^18 Wei).
+      const amountINR = ethers.parseEther("249000");
+      
+      const tx = await supplyChain.connect(farmer).requestFiatConversion(amountINR, 0); // 0 = OnRamp
+      const receipt = await tx.wait();
+
+      const request = await supplyChain.fiatRequests(1);
+      expect(request.id).to.equal(1);
+      expect(request.user).to.equal(farmer.address);
+      expect(request.amountINR).to.equal(amountINR);
+      expect(request.direction).to.equal(0); // OnRamp
+      expect(request.lockedPrice).to.equal(3000n * 10n**8n);
+      expect(request.status).to.equal(0); // Pending
+      expect(request.requiredEth).to.equal(ethers.parseEther("1.0"));
+
+      expect(await supplyChain.pendingRequestPerUser(farmer.address)).to.equal(1);
+    });
+
+    it("Should prevent user from requesting multiple concurrent conversions", async function () {
+      const amountINR = ethers.parseEther("1000");
+      await supplyChain.connect(farmer).requestFiatConversion(amountINR, 0);
+      
+      await expect(
+        supplyChain.connect(farmer).requestFiatConversion(amountINR, 0)
+      ).to.be.revertedWith("Pending request already exists");
+    });
+
+    it("Should allow admin to fulfill on-ramp and credit user with ETH", async function () {
+      const amountINR = ethers.parseEther("249000");
+      await supplyChain.connect(farmer).requestFiatConversion(amountINR, 0); // OnRamp
+
+      const userBalanceBefore = await ethers.provider.getBalance(farmer.address);
+      
+      // Admin fulfills the request and sends the required ETH
+      await supplyChain.connect(admin).fulfillConversion(1, {
+        value: ethers.parseEther("1.0")
+      });
+
+      const userBalanceAfter = await ethers.provider.getBalance(farmer.address);
+      expect(userBalanceAfter - userBalanceBefore).to.equal(ethers.parseEther("1.0"));
+
+      const request = await supplyChain.fiatRequests(1);
+      expect(request.status).to.equal(1); // Fulfilled
+      expect(await supplyChain.pendingRequestPerUser(farmer.address)).to.equal(0);
+    });
+
+    it("Should allow cancelling pending on-ramp after timeout", async function () {
+      const amountINR = ethers.parseEther("249000");
+      await supplyChain.connect(farmer).requestFiatConversion(amountINR, 0);
+
+      // User tries to cancel immediately
+      await expect(
+        supplyChain.connect(farmer).cancelPendingConversion(1)
+      ).to.be.revertedWith("Not authorized to cancel or timeout not reached");
+
+      // Admin can cancel immediately
+      await expect(
+        supplyChain.connect(admin).cancelPendingConversion(1)
+      ).to.emit(supplyChain, "FiatConversionCancelled");
+
+      const request = await supplyChain.fiatRequests(1);
+      expect(request.status).to.equal(2); // Cancelled
+      expect(await supplyChain.pendingRequestPerUser(farmer.address)).to.equal(0);
+    });
+
+    it("Should lock user's ETH during off-ramp request and release to admin on fulfillment", async function () {
+      const amountINR = ethers.parseEther("249000"); // 1 ETH equivalent
+
+      const adminBalanceBefore = await ethers.provider.getBalance(admin.address);
+
+      // Request off-ramp, sending 1 ETH value
+      await supplyChain.connect(buyer).requestFiatConversion(amountINR, 1, { // 1 = OffRamp
+        value: ethers.parseEther("1.0")
+      });
+
+      const request = await supplyChain.fiatRequests(1);
+      expect(request.requiredEth).to.equal(ethers.parseEther("1.0"));
+      expect(request.direction).to.equal(1); // OffRamp
+
+      // Admin fulfills conversion
+      const tx = await supplyChain.connect(admin).fulfillConversion(1);
+      const receipt = await tx.wait();
+      const gasCost = receipt.gasUsed * receipt.gasPrice;
+
+      const adminBalanceAfter = await ethers.provider.getBalance(admin.address);
+      
+      // Admin treasury received the 1 ETH locked in the contract (less gas cost)
+      expect(adminBalanceAfter + gasCost - adminBalanceBefore).to.equal(ethers.parseEther("1.0"));
+
+      const finalRequest = await supplyChain.fiatRequests(1);
+      expect(finalRequest.status).to.equal(1); // Fulfilled
+    });
+
+    it("Should refund user's ETH if off-ramp is cancelled", async function () {
+      const amountINR = ethers.parseEther("249000");
+
+      await supplyChain.connect(buyer).requestFiatConversion(amountINR, 1, {
+        value: ethers.parseEther("1.0")
+      });
+
+      const balanceBefore = await ethers.provider.getBalance(buyer.address);
+
+      // Admin cancels request (representing bank payment failure)
+      await supplyChain.connect(admin).cancelPendingConversion(1);
+
+      const balanceAfter = await ethers.provider.getBalance(buyer.address);
+      expect(balanceAfter - balanceBefore).to.equal(ethers.parseEther("1.0"));
+
+      const request = await supplyChain.fiatRequests(1);
+      expect(request.status).to.equal(2); // Cancelled
     });
   });
 });

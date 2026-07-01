@@ -27,6 +27,7 @@ function BlockchainViewer({ globalAccount }) {
   const [edges, setEdges] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isWrongNetwork, setIsWrongNetwork] = useState(false);
+  const [selectedRootId, setSelectedRootId] = useState("");
 
   // Fetch blockchain data directly from the Smart Contract
   const fetchBatches = async () => {
@@ -201,8 +202,6 @@ function BlockchainViewer({ globalAccount }) {
     setNodes(flowNodes);
     setEdges(flowEdges);
   }, [blocks, selectedRootId]);
-
-  const [selectedRootId, setSelectedRootId] = useState("");
 
   const rootBatches = blocks.filter(b => b.parentId === "0");
   const isFarmer = localStorage.getItem("farmer_session_active") === "true";

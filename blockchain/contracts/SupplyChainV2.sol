@@ -31,6 +31,9 @@ contract SupplyChainV2 is ReentrancyGuard {
         Cancelled        // 10: Farmer cancelled unsold listing (stake returned)
     }
 
+    enum ConversionDirection { OnRamp, OffRamp }
+    enum RequestStatus { Pending, Fulfilled, Cancelled }
+
     // ================================================================
     // STRUCTS
     // ================================================================
@@ -63,6 +66,7 @@ contract SupplyChainV2 is ReentrancyGuard {
         address initiator;
         uint votesForFarmer;
         uint votesForBuyer;
+        uint votesForNeither;
         bool resolved;
         uint bondAmount;          // Buyer's dispute bond locked here
     }
@@ -73,6 +77,17 @@ contract SupplyChainV2 is ReentrancyGuard {
         bool isActive;
         uint totalEarnings;
         uint disputesResolved;
+    }
+
+    struct FiatRequest {
+        uint256 id;
+        address user;
+        uint256 amountINR;
+        ConversionDirection direction;
+        uint256 lockedPrice; // ETH/USD price from Chainlink price feed
+        uint256 requestTimestamp;
+        RequestStatus status;
+        uint256 requiredEth;
     }
 
     // ================================================================
@@ -94,7 +109,7 @@ contract SupplyChainV2 is ReentrancyGuard {
     uint public constant RATING_INCREMENT          = 10;  // +0.10 per majority vote
     uint public constant RATING_DECREMENT          = 20;  // −0.20 per minority vote
     uint public constant ARBITRATOR_BOND           = 1 ether;
-    uint public constant MAX_POOL_SIZE             = 10;
+    uint public constant MAX_POOL_SIZE             = 15;
 
     // ================================================================
     // STATE VARIABLES
@@ -108,8 +123,8 @@ contract SupplyChainV2 is ReentrancyGuard {
 
     // Arbitrator vote tracking (separate from Dispute to keep struct lean)
     mapping(uint => mapping(address => bool)) public hasVotedOnDispute;
-    // true = voted for farmer, false = voted for buyer
-    mapping(uint => mapping(address => bool)) public arbitratorVoteForFarmer;
+    // 1 = voted for farmer, 2 = voted for buyer, 3 = voted for neither
+    mapping(uint => mapping(address => uint8)) public arbitratorVotes;
 
     // First-to-vote commit-reveal state
     mapping(uint => mapping(address => bytes32)) public arbitratorCommits;
@@ -131,7 +146,13 @@ contract SupplyChainV2 is ReentrancyGuard {
 
     // Farmer financial tracking
     mapping(address => uint)  public totalEarnings;
-    mapping(address => bool)  public isAdminSponsored;
+
+    // Fiat On/Off-Ramp Variables
+    uint256 public nextRequestId;
+    uint256 public usdToInrRate = 83; // 1 USD = 83 INR
+    uint256 public constant CONVERSION_TIMEOUT = 15 minutes;
+    mapping(uint256 => FiatRequest) public fiatRequests;
+    mapping(address => uint256) public pendingRequestPerUser;
 
     // Admin + Oracle
     address                        public adminTreasury;
@@ -158,7 +179,10 @@ contract SupplyChainV2 is ReentrancyGuard {
     event ArbitratorAdded(address indexed arbitrator);
     event ArbitratorRemoved(address indexed arbitrator, string reason);
     event ArbitratorApplied(address indexed applicant, string name, string apmcId, string phone);
-    event FarmerSponsored(address indexed farmer);
+    
+    event FiatConversionRequested(uint256 indexed requestId, address indexed user, uint256 amountINR, ConversionDirection direction, uint256 lockedPrice, uint256 requiredEth);
+    event FiatConversionFulfilled(uint256 indexed requestId);
+    event FiatConversionCancelled(uint256 indexed requestId);
 
     // ================================================================
     // MODIFIERS
@@ -197,19 +221,105 @@ contract SupplyChainV2 is ReentrancyGuard {
     }
 
     // ================================================================
-    // ADMIN - FARMER SPONSORSHIP
+    // FIAT ON/OFF-RAMP
     // ================================================================
 
     /**
-     * @notice Admin sponsors a new farmer's first harvest stake.
-     * @dev Farmer must not have earned more than MIN_STAKE yet.
+     * @notice Admin sets the USD to INR conversion rate.
      */
-    function sponsorFarmer(address _farmer) external payable onlyAdmin nonReentrant {
-        require(msg.value == MIN_STAKE, "Must deposit exactly MIN_STAKE");
-        require(totalEarnings[_farmer] < MIN_STAKE, "Farmer already financially independent");
-        require(!isAdminSponsored[_farmer], "Farmer already sponsored");
-        isAdminSponsored[_farmer] = true;
-        emit FarmerSponsored(_farmer);
+    function setUsdToInrRate(uint256 _newRate) external onlyAdmin {
+        require(_newRate > 0, "Rate must be positive");
+        usdToInrRate = _newRate;
+    }
+
+    /**
+     * @notice Initiates a conversion request. The rate is locked using the Chainlink price feed at this block.
+     * @param _amountINR The amount in INR to convert (represented with 18 decimals of precision).
+     * @param _direction Whether to buy ETH (OnRamp) or sell ETH (OffRamp).
+     */
+    function requestFiatConversion(uint256 _amountINR, ConversionDirection _direction) external payable nonReentrant {
+        require(_amountINR > 0, "Amount must be greater than zero");
+        require(pendingRequestPerUser[msg.sender] == 0, "Pending request already exists");
+
+        // Read Chainlink ETH/USD feed
+        (, int price, , uint updatedAt, ) = dataFeed.latestRoundData();
+        require(price > 0, "Invalid price");
+        require(block.timestamp - updatedAt < 4 hours, "Price feed stale");
+
+        uint256 ethInr = uint256(price) * usdToInrRate;
+        // _amountINR has 18 decimals of precision. Price has 8 decimals.
+        // reqEth (in Wei) = (_amountINR * 1e8) / ethInr
+        uint256 reqEth = (_amountINR * 1e8) / ethInr;
+        require(reqEth > 0, "Required ETH is zero");
+
+        if (_direction == ConversionDirection.OffRamp) {
+            require(msg.value == reqEth, "Must send exact required ETH for off-ramp");
+        } else {
+            require(msg.value == 0, "Do not send ETH for on-ramp");
+        }
+
+        nextRequestId++;
+        fiatRequests[nextRequestId] = FiatRequest({
+            id: nextRequestId,
+            user: msg.sender,
+            amountINR: _amountINR,
+            direction: _direction,
+            lockedPrice: uint256(price),
+            requestTimestamp: block.timestamp,
+            status: RequestStatus.Pending,
+            requiredEth: reqEth
+        });
+        pendingRequestPerUser[msg.sender] = nextRequestId;
+
+        emit FiatConversionRequested(nextRequestId, msg.sender, _amountINR, _direction, uint256(price), reqEth);
+    }
+
+    /**
+     * @notice Fulfills a pending conversion request.
+     * @param _requestId The ID of the conversion request.
+     */
+    function fulfillConversion(uint256 _requestId) external payable onlyAdmin nonReentrant {
+        FiatRequest storage request = fiatRequests[_requestId];
+        require(request.status == RequestStatus.Pending, "Request not pending");
+
+        request.status = RequestStatus.Fulfilled;
+        pendingRequestPerUser[request.user] = 0;
+
+        if (request.direction == ConversionDirection.OnRamp) {
+            require(msg.value == request.requiredEth, "Must send exact required ETH");
+            (bool success, ) = payable(request.user).call{value: request.requiredEth}("");
+            require(success, "ETH transfer to user failed");
+        } else {
+            require(msg.value == 0, "Do not send ETH for off-ramp fulfillment");
+            (bool success, ) = payable(adminTreasury).call{value: request.requiredEth}("");
+            require(success, "ETH release to treasury failed");
+        }
+
+        emit FiatConversionFulfilled(_requestId);
+    }
+
+    /**
+     * @notice Cancels a pending conversion request.
+     * @param _requestId The ID of the conversion request.
+     */
+    function cancelPendingConversion(uint256 _requestId) external nonReentrant {
+        FiatRequest storage request = fiatRequests[_requestId];
+        require(request.status == RequestStatus.Pending, "Request not pending");
+        require(
+            msg.sender == adminTreasury ||
+            (msg.sender == request.user && block.timestamp > request.requestTimestamp + CONVERSION_TIMEOUT),
+            "Not authorized to cancel or timeout not reached"
+        );
+
+        request.status = RequestStatus.Cancelled;
+        pendingRequestPerUser[request.user] = 0;
+
+        if (request.direction == ConversionDirection.OffRamp) {
+            (bool success, ) = payable(request.user).call{value: request.requiredEth}("");
+            require(success, "ETH refund to user failed");
+        }
+
+        emit FiatConversionCancelled(_requestId);
     }
 
     // ================================================================
@@ -421,14 +531,8 @@ contract SupplyChainV2 is ReentrancyGuard {
 
         if (_parentId == 0) {
             // Root harvest - stake required
-            if (isAdminSponsored[msg.sender]) {
-                require(msg.value == 0, "No stake needed - Admin Sponsored");
-                isAdminSponsored[msg.sender] = false;
-                actualStake = stakeRequired; // Conceptually covered by Admin
-            } else {
-                require(msg.value == stakeRequired, "Incorrect stake amount");
-                actualStake = stakeRequired;
-            }
+            require(msg.value == stakeRequired, "Incorrect stake amount");
+            actualStake = stakeRequired;
         } else {
             // Resale/child batch - no stake
             require(msg.value == 0, "No stake required for resale batches");
@@ -457,7 +561,7 @@ contract SupplyChainV2 is ReentrancyGuard {
             farmer: msg.sender,
             buyer: address(0),
             status: Status.Created,
-            isAdminSponsored: (_parentId == 0 && msg.value == 0 && actualStake > 0),
+            isAdminSponsored: false,
             location: _location,
             expiryTimestamp: _expiryTimestamp,
             video1Hash: bytes32(0),
@@ -657,13 +761,7 @@ contract SupplyChainV2 is ReentrancyGuard {
         // Full stake returned to farmer - stake is anti-spam, not per-kg
         uint stakeReturn = 0;
         if (batch.parentId == 0 && batch.stakeAmount > 0) {
-            if (!batch.isAdminSponsored) {
-                stakeReturn = batch.stakeAmount;
-            } else {
-                (bool sa, ) = payable(adminTreasury).call{value: batch.stakeAmount}("");
-                require(sa, "Admin stake return failed");
-                isAdminSponsored[batch.farmer] = true;
-            }
+            stakeReturn = batch.stakeAmount;
             batch.stakeAmount = 0;
         }
 
@@ -710,14 +808,8 @@ contract SupplyChainV2 is ReentrancyGuard {
         if (batch.parentId == 0 && batch.stakeAmount > 0) {
             uint stake = batch.stakeAmount;
             batch.stakeAmount = 0;
-            if (batch.isAdminSponsored) {
-                (bool s2, ) = payable(adminTreasury).call{value: stake}("");
-                require(s2, "Admin stake return failed");
-                isAdminSponsored[batch.farmer] = true;
-            } else {
-                (bool s2, ) = payable(batch.farmer).call{value: stake}("");
-                require(s2, "Farmer stake return failed");
-            }
+            (bool s2, ) = payable(batch.farmer).call{value: stake}("");
+            require(s2, "Farmer stake return failed");
         }
 
         emit Refunded(_batchId, originalBuyer, amount);
@@ -739,14 +831,8 @@ contract SupplyChainV2 is ReentrancyGuard {
         uint stake = batch.stakeAmount;
         batch.stakeAmount = 0;
 
-        if (batch.isAdminSponsored) {
-            (bool s1, ) = payable(adminTreasury).call{value: stake}("");
-            require(s1, "Admin stake return failed");
-            isAdminSponsored[batch.farmer] = true;
-        } else {
-            (bool s1, ) = payable(batch.farmer).call{value: stake}("");
-            require(s1, "Farmer stake return failed");
-        }
+        (bool s1, ) = payable(batch.farmer).call{value: stake}("");
+        require(s1, "Farmer stake return failed");
 
         emit BatchCancelled(_batchId, batch.farmer);
     }
@@ -789,12 +875,10 @@ contract SupplyChainV2 is ReentrancyGuard {
             return;
         }
 
-        require(!batch.isAdminSponsored, "Sponsored batches cannot file standard bonds. Admin exception needed.");
-
         // ── FULL DISPUTE: Both videos exist, requires bond ────────────────────────
         uint bondRequired = _calculateDisputeBond(batch.pricePerKg * batch.quantity);
         require(msg.value == bondRequired, "Incorrect dispute bond amount");
-        require(arbitratorPool.length >= 5, "Not enough arbitrators in pool");
+        require(arbitratorPool.length >= 7, "Not enough arbitrators in pool");
 
         disputeCount++;
 
@@ -804,6 +888,7 @@ contract SupplyChainV2 is ReentrancyGuard {
             initiator: msg.sender,
             votesForFarmer: 0,
             votesForBuyer: 0,
+            votesForNeither: 0,
             resolved: false,
             bondAmount: msg.value
         });
@@ -815,7 +900,7 @@ contract SupplyChainV2 is ReentrancyGuard {
 
     /**
      * @notice Arbitrators commit their secret vote hash.
-     * @dev The first 5 active arbitrators to commit form the jury.
+     * @dev The first 7 active arbitrators to commit form the jury.
      */
     function commitArbitratorVote(uint _disputeId, bytes32 _commitHash) external onlyActiveArbitrator nonReentrant {
         Dispute storage dispute = disputes[_disputeId];
@@ -823,7 +908,7 @@ contract SupplyChainV2 is ReentrancyGuard {
         require(!hasCommittedOnDispute[_disputeId][msg.sender], "Already committed on this dispute");
         
         address[] storage jury = disputeCommittedArbitrators[_disputeId];
-        require(jury.length < 5, "Jury pool of 5 already filled");
+        require(jury.length < 7, "Jury pool of 7 already filled");
 
         hasCommittedOnDispute[_disputeId][msg.sender] = true;
         arbitratorCommits[_disputeId][msg.sender] = _commitHash;
@@ -836,27 +921,30 @@ contract SupplyChainV2 is ReentrancyGuard {
      * @notice Committed arbitrators reveal their plaintext votes.
      * @dev Once 3 winning votes are revealed, the dispute auto-finalizes.
      */
-    function revealArbitratorVote(uint _disputeId, bool _votesForFarmer, uint256 _salt) external onlyActiveArbitrator nonReentrant {
+    function revealArbitratorVote(uint _disputeId, uint8 _vote, uint256 _salt) external onlyActiveArbitrator nonReentrant {
         Dispute storage dispute = disputes[_disputeId];
         require(!dispute.resolved, "Dispute already resolved");
         require(hasCommittedOnDispute[_disputeId][msg.sender], "Did not commit a vote for this dispute");
         require(!hasRevealedOnDispute[_disputeId][msg.sender], "Already revealed vote");
+        require(_vote == 1 || _vote == 2 || _vote == 3, "Invalid vote option");
 
-        bytes32 expectedHash = keccak256(abi.encodePacked(_votesForFarmer, _salt));
+        bytes32 expectedHash = keccak256(abi.encodePacked(_vote, _salt));
         require(arbitratorCommits[_disputeId][msg.sender] == expectedHash, "Invalid commit reveal parameters");
 
         hasRevealedOnDispute[_disputeId][msg.sender] = true;
         hasVotedOnDispute[_disputeId][msg.sender] = true;
-        arbitratorVoteForFarmer[_disputeId][msg.sender] = _votesForFarmer;
+        arbitratorVotes[_disputeId][msg.sender] = _vote;
 
-        if (_votesForFarmer) {
+        if (_vote == 1) {
             dispute.votesForFarmer++;
-        } else {
+        } else if (_vote == 2) {
             dispute.votesForBuyer++;
+        } else if (_vote == 3) {
+            dispute.votesForNeither++;
         }
 
         // Auto-finalize: first side to 3 votes wins immediately
-        if (dispute.votesForFarmer >= 3 || dispute.votesForBuyer >= 3) {
+        if (dispute.votesForFarmer >= 3 || dispute.votesForBuyer >= 3 || dispute.votesForNeither >= 3) {
             _finalizeDisputeInternal(_disputeId);
         }
     }
@@ -868,7 +956,7 @@ contract SupplyChainV2 is ReentrancyGuard {
         Dispute storage dispute = disputes[_disputeId];
         require(!dispute.resolved, "Already resolved");
         require(
-            dispute.votesForFarmer >= 3 || dispute.votesForBuyer >= 3,
+            dispute.votesForFarmer >= 3 || dispute.votesForBuyer >= 3 || dispute.votesForNeither >= 3,
             "No majority reached yet - 3 votes required"
         );
         _finalizeDisputeInternal(_disputeId);
@@ -882,7 +970,10 @@ contract SupplyChainV2 is ReentrancyGuard {
         Dispute storage dispute = disputes[_disputeId];
         dispute.resolved = true;
 
-        bool farmerWins = dispute.votesForFarmer >= 3;
+        uint8 winningOption = 0;
+        if (dispute.votesForFarmer >= 3) winningOption = 1;
+        else if (dispute.votesForBuyer >= 3) winningOption = 2;
+        else if (dispute.votesForNeither >= 3) winningOption = 3;
 
         Batch storage batch = batches[dispute.batchId];
         uint escrow = batch.escrowAmount;
@@ -891,20 +982,37 @@ contract SupplyChainV2 is ReentrancyGuard {
         batch.escrowAmount = 0;
         batch.stakeAmount  = 0;
 
-        // Payment = losing party's stake ÷ 3 (always exactly 3 winners in first-to-3 model)
-        uint payPerWinner = farmerWins ? bond / 3 : stake / 3;
+        uint payPerWinner = 0;
 
-        if (farmerWins) {
+        if (winningOption == 1) {
             batch.status = Status.FarmerWins;
-            // Farmer gets escrow + stake returned
+            payPerWinner = bond / 3;
             totalEarnings[batch.farmer] += escrow;
             (bool s1, ) = payable(batch.farmer).call{value: escrow + stake}("");
             require(s1, "Farmer payout failed");
-        } else {
+        } else if (winningOption == 2) {
             batch.status = Status.BuyerWins;
-            // Buyer gets escrow refund + bond returned
+            payPerWinner = stake / 3;
             (bool s1, ) = payable(batch.buyer).call{value: escrow + bond}("");
             require(s1, "Buyer refund failed");
+        } else if (winningOption == 3) {
+            batch.status = Status.FarmerWins; // Treat status as FarmerWins
+            
+            uint poolAmount = stake + bond;
+            payPerWinner = poolAmount / 5;
+            uint remainder = poolAmount % 5;
+
+            totalEarnings[batch.farmer] += escrow;
+            (bool s1, ) = payable(batch.farmer).call{value: escrow + payPerWinner}("");
+            require(s1, "Farmer payout failed");
+
+            (bool s2, ) = payable(batch.buyer).call{value: payPerWinner}("");
+            require(s2, "Buyer refund failed");
+
+            if (remainder > 0) {
+                (bool s3, ) = payable(adminTreasury).call{value: remainder}("");
+                require(s3, "Admin remainder payout failed");
+            }
         }
 
         // Update arbitrator ratings and reward winners (Pull withdrawal pattern)
@@ -916,8 +1024,8 @@ contract SupplyChainV2 is ReentrancyGuard {
                 continue; // Did not participate in time - no consequence
             }
 
-            bool votedForFarmer = arbitratorVoteForFarmer[_disputeId][arb];
-            bool isWinner       = (farmerWins == votedForFarmer);
+            uint8 vote = arbitratorVotes[_disputeId][arb];
+            bool isWinner = (vote == winningOption);
 
             if (isWinner) {
                 arbitrators[arb].rating       += RATING_INCREMENT;
@@ -930,8 +1038,12 @@ contract SupplyChainV2 is ReentrancyGuard {
             }
         }
 
-        uint winningVotes = farmerWins ? dispute.votesForFarmer : dispute.votesForBuyer;
-        emit DisputeResolved(_disputeId, dispute.batchId, farmerWins, winningVotes);
+        uint winningVotes = 0;
+        if (winningOption == 1) winningVotes = dispute.votesForFarmer;
+        else if (winningOption == 2) winningVotes = dispute.votesForBuyer;
+        else if (winningOption == 3) winningVotes = dispute.votesForNeither;
+
+        emit DisputeResolved(_disputeId, dispute.batchId, winningOption == 1 || winningOption == 3, winningVotes);
     }
 
     /**
@@ -966,26 +1078,15 @@ contract SupplyChainV2 is ReentrancyGuard {
         batch.stakeAmount  = 0;
 
         uint stakeReturn = 0;
-        uint adminAmount = 0;
 
         if (batch.parentId == 0 && stake > 0) {
-            if (batch.isAdminSponsored) {
-                adminAmount = stake;
-            } else {
-                stakeReturn = stake;
-            }
+            stakeReturn = stake;
         }
 
         totalEarnings[batch.farmer] += escrow;
 
         (bool s1, ) = payable(batch.farmer).call{value: escrow + stakeReturn}("");
         require(s1, "Farmer payout failed");
-
-        if (adminAmount > 0) {
-            (bool s2, ) = payable(adminTreasury).call{value: adminAmount}("");
-            require(s2, "Admin stake return failed");
-            isAdminSponsored[batch.farmer] = true;
-        }
 
         emit BatchAbandoned(_batchId, batch.farmer, escrow);
     }

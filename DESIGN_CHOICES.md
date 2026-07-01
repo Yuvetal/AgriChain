@@ -58,3 +58,16 @@ This document outlines the core technical and economic design choices implemente
 * **Rationale**:
   * **Off-ramp Integrity**: A user could call the API with dummy hashes or negative amounts to drain balances. Verifying the receipt on-chain ensures that off-chain fiat conversions only occur after real, successful ETH events.
   * **DoS Defense**: The backend must handle file streams defensively to prevent attackers from uploading multi-gigabyte files to overflow server disks or exhaust Pinata API storage quotas.
+
+---
+
+## 🏛️ 8. "Neither" Dispute Resolution (Ambiguous Quality) & Committee Expansion
+* **Choice**: 
+  1. Introducing a third vote option ("Neither") for highly ambiguous video evidence.
+  2. If "Neither" wins, the escrowed purchase price goes entirely to the farmer. The farmer's listing stake and buyer's dispute bond are pooled together and split equally 5-way: 1/5 to the buyer, 1/5 to the farmer, and 1/5 to each of the 3 "Neither" voting arbitrators.
+  3. Expanding the active arbitrator pool capacity from 10 to 15, and the dispute jury committee size from 5 to 7.
+* **Rationale**:
+  * **Protecting Honest Farmers**: If the evidence is highly ambiguous, the crop is likely not heavily spoiled. In agricultural trade, minor changes in quality are normal during transit due to distance and environmental exposure (conditions bound by transit distances and crop expiry dates). Refunding the buyer fully would unfairly penalize the farmer who shipped the crop in good faith. Thus, the crop sale is upheld, and the escrow goes to the farmer.
+  * **Loss Mitigation**: Since the evidence is too close to call, the buyer is refunded 1/5 of the pooled stakes to mitigate their loss, and the farmer receives 1/5 to cover listing costs.
+  * **Mathematical Consensus (Jury Size)**: With three choices (Farmer, Buyer, Neither), a 5-member jury could easily split 2/2/1, and a 6-member jury could split 2/2/2, causing voting gridlocks. Expanding the jury to 7 guarantees by the Pigeonhole Principle that at least one option must receive at least 3 votes ($\lceil 7/3 \rceil = 3$), ensuring quick consensus and finality under the "first-to-3" rule.
+

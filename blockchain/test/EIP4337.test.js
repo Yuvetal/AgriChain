@@ -2,6 +2,7 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 
 describe("EIP-4337 Account Abstraction Integration", function () {
+  this.timeout(100000);
   let entryPoint;
   let factory;
   let paymaster;
@@ -84,7 +85,7 @@ describe("EIP-4337 Account Abstraction Integration", function () {
     ]);
     const executeCallData = accountInterface.encodeFunctionData("execute", [
       supplyChainAddr,
-      0, // Zero native value inside smart wallet
+      ethers.parseEther("0.01"), // Send the 0.01 ETH stake along with the call to createBatch
       createBatchCallData
     ]);
 
@@ -162,8 +163,8 @@ describe("EIP-4337 Account Abstraction Integration", function () {
     const farmerSignature = await farmerEOA.signMessage(ethers.getBytes(userOpHash));
     userOp.signature = farmerSignature;
 
-    // Sponsor the predicted smart account on SupplyChainV2 so it doesn't require a stake for root harvest
-    await supplyChain.connect(deployer).sponsorFarmer(predictedAccountAddr, { value: ethers.parseEther("0.01") });
+    // Fund the predicted smart account directly with 0.01 ETH to cover the crop listing stake
+    await deployer.sendTransaction({ to: predictedAccountAddr, value: ethers.parseEther("0.01") });
 
     // Verify smart wallet is NOT deployed yet
     expect(await ethers.provider.getCode(predictedAccountAddr)).to.equal("0x");
