@@ -37,9 +37,9 @@ async function main() {
 
   // 5. Fund the AgroPaymaster in EntryPoint
   console.log("Depositing gas sponsoring reserves to EntryPoint...");
-  const depositTx = await paymaster.deposit({ value: hre.ethers.parseEther("5.0") });
+  const depositTx = await paymaster.deposit({ value: hre.ethers.parseEther("0.01") });
   await depositTx.wait();
-  console.log("Successfully deposited 5.0 ETH gas sponsorship reserves.");
+  console.log("Successfully deposited 0.01 ETH gas sponsorship reserves.");
 
   // Helper to read and write ABI + address to frontend & backend
   const exportContract = (contractName, address, artifactName, outputName) => {

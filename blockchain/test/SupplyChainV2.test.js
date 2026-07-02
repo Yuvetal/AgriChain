@@ -35,7 +35,7 @@ describe("SupplyChainV2 Protocol Upgrades", function () {
         supplyChain.connect(arbitrators[0]).applyAsArbitrator("Arb1", "APMC001", "1234567890", {
           value: ethers.parseEther("0.5")
         })
-      ).to.be.revertedWith("Must deposit arbitrator bond");
+      ).to.be.revertedWith("Invalid bond");
 
       await expect(
         supplyChain.connect(arbitrators[0]).applyAsArbitrator("Arb1", "APMC001", "1234567890", {
@@ -61,7 +61,7 @@ describe("SupplyChainV2 Protocol Upgrades", function () {
         supplyChain.connect(extraArb).applyAsArbitrator("Arb16", "APMC016", "1234567890", {
           value: ethers.parseEther("1.0")
         })
-      ).to.be.revertedWith("Arbitrator pool full");
+      ).to.be.revertedWith("Pool full");
     });
 
     it("Should perform linear slashing based on rating during willing withdrawal", async function () {
@@ -101,7 +101,7 @@ describe("SupplyChainV2 Protocol Upgrades", function () {
     it("Should restrict nominateTrustee to only the buyer", async function () {
       await expect(
         supplyChain.connect(farmer).nominateTrustee(batchId, trustee.address, ethers.encodeBytes32String("videoHash"))
-      ).to.be.revertedWith("Only buyer can nominate a trustee");
+      ).to.be.revertedWith("Only buyer");
 
       await expect(
         supplyChain.connect(buyer).nominateTrustee(batchId, trustee.address, ethers.encodeBytes32String("videoHash"))
@@ -111,7 +111,7 @@ describe("SupplyChainV2 Protocol Upgrades", function () {
     it("Should reject confirmDispatch if packing video has not been uploaded", async function () {
       await expect(
         supplyChain.connect(farmer).confirmDispatch(batchId, "TRACK123")
-      ).to.be.revertedWith("Must upload packing video before dispatch");
+      ).to.be.revertedWith("No packing video");
 
       await supplyChain.connect(farmer).uploadPackingVideo(batchId, ethers.encodeBytes32String("packingVideo"));
       await expect(
@@ -128,7 +128,7 @@ describe("SupplyChainV2 Protocol Upgrades", function () {
       const randomSigner = arbitrators[0];
       await expect(
         supplyChain.connect(randomSigner).confirmDelivery(batchId, ethers.encodeBytes32String("deliveryVideo"))
-      ).to.be.revertedWith("Only buyer or trustee can confirm delivery");
+      ).to.be.revertedWith("Unauthorized");
 
       // Trustee can confirm
       await expect(
@@ -186,7 +186,7 @@ describe("SupplyChainV2 Protocol Upgrades", function () {
       const commit8 = ethers.solidityPackedKeccak256(["uint8", "uint256"], [1, salt]);
       await expect(
         supplyChain.connect(arbitrators[7]).commitArbitratorVote(disputeId, commit8)
-      ).to.be.revertedWith("Jury pool of 7 already filled");
+      ).to.be.revertedWith("Jury filled");
 
       // 2. Reveal phase
       // Reveal 1 (farmer)
@@ -268,7 +268,7 @@ describe("SupplyChainV2 Protocol Upgrades", function () {
 
   describe("Fiat On/Off-Ramp", function () {
     it("Should allow admin to update USD to INR rate", async function () {
-      await expect(supplyChain.connect(farmer).setUsdToInrRate(85)).to.be.revertedWith("Only Admin Treasury");
+      await expect(supplyChain.connect(farmer).setUsdToInrRate(85)).to.be.revertedWith("Only Admin");
       await supplyChain.connect(admin).setUsdToInrRate(85);
       expect(await supplyChain.usdToInrRate()).to.equal(85);
     });
@@ -300,7 +300,7 @@ describe("SupplyChainV2 Protocol Upgrades", function () {
       
       await expect(
         supplyChain.connect(farmer).requestFiatConversion(amountINR, 0)
-      ).to.be.revertedWith("Pending request already exists");
+      ).to.be.revertedWith("Pending request");
     });
 
     it("Should allow admin to fulfill on-ramp and credit user with ETH", async function () {
@@ -329,7 +329,7 @@ describe("SupplyChainV2 Protocol Upgrades", function () {
       // User tries to cancel immediately
       await expect(
         supplyChain.connect(farmer).cancelPendingConversion(1)
-      ).to.be.revertedWith("Not authorized to cancel or timeout not reached");
+      ).to.be.revertedWith("Unauthorized");
 
       // Admin can cancel immediately
       await expect(

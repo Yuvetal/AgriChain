@@ -189,12 +189,12 @@ contract SupplyChainV2 is ReentrancyGuard {
     // ================================================================
 
     modifier onlyAdmin() {
-        require(msg.sender == adminTreasury, "Only Admin Treasury");
+        require(msg.sender == adminTreasury, "Only Admin");
         _;
     }
 
     modifier onlyActiveArbitrator() {
-        require(isArbitrator[msg.sender] && arbitrators[msg.sender].isActive, "Not an active arbitrator");
+        require(isArbitrator[msg.sender] && arbitrators[msg.sender].isActive, "Unauthorized");
         _;
     }
 
@@ -228,7 +228,7 @@ contract SupplyChainV2 is ReentrancyGuard {
      * @notice Admin sets the USD to INR conversion rate.
      */
     function setUsdToInrRate(uint256 _newRate) external onlyAdmin {
-        require(_newRate > 0, "Rate must be positive");
+        require(_newRate > 0, "Invalid rate");
         usdToInrRate = _newRate;
     }
 
@@ -238,24 +238,24 @@ contract SupplyChainV2 is ReentrancyGuard {
      * @param _direction Whether to buy ETH (OnRamp) or sell ETH (OffRamp).
      */
     function requestFiatConversion(uint256 _amountINR, ConversionDirection _direction) external payable nonReentrant {
-        require(_amountINR > 0, "Amount must be greater than zero");
-        require(pendingRequestPerUser[msg.sender] == 0, "Pending request already exists");
+        require(_amountINR > 0, "Invalid amount");
+        require(pendingRequestPerUser[msg.sender] == 0, "Pending request");
 
         // Read Chainlink ETH/USD feed
         (, int price, , uint updatedAt, ) = dataFeed.latestRoundData();
         require(price > 0, "Invalid price");
-        require(block.timestamp - updatedAt < 4 hours, "Price feed stale");
+        require(block.timestamp - updatedAt < 4 hours, "Price stale");
 
         uint256 ethInr = uint256(price) * usdToInrRate;
         // _amountINR has 18 decimals of precision. Price has 8 decimals.
         // reqEth (in Wei) = (_amountINR * 1e8) / ethInr
         uint256 reqEth = (_amountINR * 1e8) / ethInr;
-        require(reqEth > 0, "Required ETH is zero");
+        require(reqEth > 0, "Invalid amount");
 
         if (_direction == ConversionDirection.OffRamp) {
-            require(msg.value == reqEth, "Must send exact required ETH for off-ramp");
+            require(msg.value == reqEth, "Incorrect ETH");
         } else {
-            require(msg.value == 0, "Do not send ETH for on-ramp");
+            require(msg.value == 0, "Do not send ETH");
         }
 
         nextRequestId++;
@@ -280,19 +280,19 @@ contract SupplyChainV2 is ReentrancyGuard {
      */
     function fulfillConversion(uint256 _requestId) external payable onlyAdmin nonReentrant {
         FiatRequest storage request = fiatRequests[_requestId];
-        require(request.status == RequestStatus.Pending, "Request not pending");
+        require(request.status == RequestStatus.Pending, "Not pending");
 
         request.status = RequestStatus.Fulfilled;
         pendingRequestPerUser[request.user] = 0;
 
         if (request.direction == ConversionDirection.OnRamp) {
-            require(msg.value == request.requiredEth, "Must send exact required ETH");
+            require(msg.value == request.requiredEth, "Incorrect ETH");
             (bool success, ) = payable(request.user).call{value: request.requiredEth}("");
-            require(success, "ETH transfer to user failed");
+            require(success, "Failed");
         } else {
-            require(msg.value == 0, "Do not send ETH for off-ramp fulfillment");
+            require(msg.value == 0, "Do not send ETH");
             (bool success, ) = payable(adminTreasury).call{value: request.requiredEth}("");
-            require(success, "ETH release to treasury failed");
+            require(success, "Failed");
         }
 
         emit FiatConversionFulfilled(_requestId);
@@ -304,11 +304,11 @@ contract SupplyChainV2 is ReentrancyGuard {
      */
     function cancelPendingConversion(uint256 _requestId) external nonReentrant {
         FiatRequest storage request = fiatRequests[_requestId];
-        require(request.status == RequestStatus.Pending, "Request not pending");
+        require(request.status == RequestStatus.Pending, "Not pending");
         require(
             msg.sender == adminTreasury ||
             (msg.sender == request.user && block.timestamp > request.requestTimestamp + CONVERSION_TIMEOUT),
-            "Not authorized to cancel or timeout not reached"
+            "Unauthorized"
         );
 
         request.status = RequestStatus.Cancelled;
@@ -316,7 +316,7 @@ contract SupplyChainV2 is ReentrancyGuard {
 
         if (request.direction == ConversionDirection.OffRamp) {
             (bool success, ) = payable(request.user).call{value: request.requiredEth}("");
-            require(success, "ETH refund to user failed");
+            require(success, "Failed");
         }
 
         emit FiatConversionCancelled(_requestId);
@@ -330,8 +330,8 @@ contract SupplyChainV2 is ReentrancyGuard {
      * @notice Admin adds an arbitrator during bootstrap phase.
      */
     function addArbitrator(address _arbitrator) external payable onlyAdmin {
-        require(msg.value == ARBITRATOR_BOND, "Must deposit arbitrator bond");
-        require(arbitratorPool.length < MAX_POOL_SIZE, "Arbitrator pool full");
+        require(msg.value == ARBITRATOR_BOND, "Invalid bond");
+        require(arbitratorPool.length < MAX_POOL_SIZE, "Pool full");
         _addArbitratorInternal(_arbitrator);
     }
 
@@ -339,11 +339,11 @@ contract SupplyChainV2 is ReentrancyGuard {
      * @notice Any address can apply to become an arbitrator by submitting transparent credentials.
      */
     function applyAsArbitrator(string memory _name, string memory _apmcId, string memory _phone) external payable {
-        require(arbitratorPool.length < MAX_POOL_SIZE, "Arbitrator pool full");
-        require(!isArbitrator[msg.sender], "Already an arbitrator");
-        require(arbitratorApplications[msg.sender] == bytes32(0), "Application already pending");
-        require(msg.value == ARBITRATOR_BOND, "Must deposit arbitrator bond");
-        require(bytes(_name).length > 0 && bytes(_apmcId).length > 0 && bytes(_phone).length > 0, "All credentials required");
+        require(arbitratorPool.length < MAX_POOL_SIZE, "Pool full");
+        require(!isArbitrator[msg.sender], "Already arb");
+        require(arbitratorApplications[msg.sender] == bytes32(0), "Pending app");
+        require(msg.value == ARBITRATOR_BOND, "Invalid bond");
+        require(bytes(_name).length > 0 && bytes(_apmcId).length > 0 && bytes(_phone).length > 0, "Invalid credentials");
         
         // We still hash it locally to act as a state-tracking unique identifier without taking up massive bytes space
         bytes32 rawHash = keccak256(abi.encodePacked(_name, _apmcId, _phone));
@@ -360,21 +360,21 @@ contract SupplyChainV2 is ReentrancyGuard {
     function voteOnApplicant(address _applicant, bool _approve) external {
         require(
             (isArbitrator[msg.sender] && arbitrators[msg.sender].isActive) || msg.sender == adminTreasury,
-            "Not authorized to vote"
+            "Unauthorized"
         );
-        require(arbitratorApplications[_applicant] != bytes32(0), "No pending application");
-        require(!hasVotedOnApplicant[_applicant][msg.sender], "Already voted on this applicant");
+        require(arbitratorApplications[_applicant] != bytes32(0), "No pending app");
+        require(!hasVotedOnApplicant[_applicant][msg.sender], "Already voted");
 
         uint poolSize = arbitratorPool.length;
         uint threshold = (poolSize / 2) + 1;
 
         if (msg.sender == adminTreasury) {
             // Admin only votes if it's a perfect tie (even pool)
-            require(poolSize % 2 == 0, "Consensus exists (odd pool). Wait for peer vote.");
+            require(poolSize % 2 == 0, "Consensus exists");
             require(
                 applicantApprovalCount[_applicant] == poolSize / 2 && 
                 applicantRejectionCount[_applicant] == poolSize / 2,
-                "Not a tie. Wait for peers."
+                "Not a tie"
             );
             // Admin's decision is final
             if (_approve) {
@@ -416,11 +416,11 @@ contract SupplyChainV2 is ReentrancyGuard {
         
         // Refund the 1 ETH bond to the rejected applicant
         (bool success, ) = payable(_applicant).call{value: ARBITRATOR_BOND}("");
-        require(success, "Refund of applicant bond failed");
+        require(success, "Failed");
     }
 
     function _addArbitratorInternal(address _arbitrator) internal {
-        require(!isArbitrator[_arbitrator], "Already an arbitrator");
+        require(!isArbitrator[_arbitrator], "Already arb");
         isArbitrator[_arbitrator] = true;
         arbitrators[_arbitrator] = Arbitrator({
             addr: _arbitrator,
@@ -449,7 +449,7 @@ contract SupplyChainV2 is ReentrancyGuard {
 
         // Slash entire bond to the adminTreasury
         (bool success, ) = payable(adminTreasury).call{value: ARBITRATOR_BOND}("");
-        require(success, "Slashed bond transfer to treasury failed");
+        require(success, "Failed");
 
         emit ArbitratorRemoved(_arbitrator, _reason);
     }
@@ -458,8 +458,8 @@ contract SupplyChainV2 is ReentrancyGuard {
      * @notice Allows an arbitrator to willingly withdraw from the pool and recover their scaled bond.
      */
     function withdrawArbitrator() external nonReentrant {
-        require(isArbitrator[msg.sender], "Not a registered arbitrator");
-        require(arbitrators[msg.sender].isActive, "Arbitrator already inactive");
+        require(isArbitrator[msg.sender], "Not arb");
+        require(arbitrators[msg.sender].isActive, "Inactive");
 
         isArbitrator[msg.sender] = false;
         arbitrators[msg.sender].isActive = false;
@@ -488,11 +488,11 @@ contract SupplyChainV2 is ReentrancyGuard {
 
         if (refundAmount > 0) {
             (bool s1, ) = payable(msg.sender).call{value: refundAmount}("");
-            require(s1, "Arbitrator bond refund failed");
+            require(s1, "Failed");
         }
         if (slashedAmount > 0) {
             (bool s2, ) = payable(adminTreasury).call{value: slashedAmount}("");
-            require(s2, "Slashed bond transfer failed");
+            require(s2, "Failed");
         }
 
         emit ArbitratorRemoved(msg.sender, "Willing withdrawal");
@@ -519,31 +519,31 @@ contract SupplyChainV2 is ReentrancyGuard {
         string memory _location,
         uint _expiryTimestamp
     ) external payable {
-        require(bytes(_name).length > 0, "Name cannot be empty");
-        require(_quantity > 0, "Quantity must be > 0");
-        require(_pricePerKg > 0, "Price must be > 0");
-        require(bytes(_location).length > 0, "Location cannot be empty");
-        require(_expiryTimestamp >= block.timestamp + MIN_EXPIRY_DURATION, "Expiry too soon - minimum 24 hours");
-        require(_expiryTimestamp <= block.timestamp + MAX_EXPIRY_DURATION, "Expiry too far - maximum 30 days");
+        require(bytes(_name).length > 0, "Invalid name");
+        require(_quantity > 0, "Invalid qty");
+        require(_pricePerKg > 0, "Invalid price");
+        require(bytes(_location).length > 0, "Invalid location");
+        require(_expiryTimestamp >= block.timestamp + MIN_EXPIRY_DURATION, "Expiry too soon");
+        require(_expiryTimestamp <= block.timestamp + MAX_EXPIRY_DURATION, "Expiry too far");
 
         uint stakeRequired = _calculateStake(_pricePerKg * _quantity);
         uint actualStake = 0;
 
         if (_parentId == 0) {
             // Root harvest - stake required
-            require(msg.value == stakeRequired, "Incorrect stake amount");
+            require(msg.value == stakeRequired, "Incorrect stake");
             actualStake = stakeRequired;
         } else {
             // Resale/child batch - no stake
-            require(msg.value == 0, "No stake required for resale batches");
+            require(msg.value == 0, "Do not send ETH");
             Batch storage parent = batches[_parentId];
-            require(parent.id != 0, "Parent batch does not exist");
-            require(parent.status == Status.Created, "Parent batch not available");
-            require(parent.remainingQuantity >= _quantity, "Insufficient supply in parent");
+            require(parent.id != 0, "Parent not exist");
+            require(parent.status == Status.Created, "Parent not available");
+            require(parent.remainingQuantity >= _quantity, "Insufficient supply");
             require(
                 msg.sender == parent.buyer ||
                 (parent.buyer == address(0) && msg.sender == parent.farmer),
-                "Unauthorized: You do not own this supply"
+                "Unauthorized"
             );
             parent.remainingQuantity -= _quantity;
         }
@@ -580,12 +580,12 @@ contract SupplyChainV2 is ReentrancyGuard {
 
     function purchaseBatch(uint _batchId) external payable nonReentrant {
         Batch storage batch = batches[_batchId];
-        require(batch.id != 0, "Batch does not exist");
+        require(batch.id != 0, "Batch not exist");
         require(batch.status == Status.Created, "Batch not available");
-        require(msg.sender != batch.farmer, "Farmer cannot buy own batch");
+        require(msg.sender != batch.farmer, "Farmer cannot buy");
         uint totalCost = batch.pricePerKg * batch.quantity;
-        require(msg.value == totalCost, "Incorrect payment amount");
-        require(block.timestamp < batch.expiryTimestamp, "Batch has expired");
+        require(msg.value == totalCost, "Incorrect payment");
+        require(block.timestamp < batch.expiryTimestamp, "Batch expired");
 
         batch.buyer = msg.sender;
         batch.status = Status.Sold;
@@ -596,14 +596,14 @@ contract SupplyChainV2 is ReentrancyGuard {
 
     function purchasePartialBatch(uint _batchId, uint _quantity) external payable nonReentrant {
         Batch storage parent = batches[_batchId];
-        require(parent.id != 0, "Parent does not exist");
-        require(parent.status == Status.Created, "Parent not available");
-        require(_quantity > 0 && _quantity <= parent.remainingQuantity, "Invalid quantity");
-        require(msg.sender != parent.farmer, "Farmer cannot buy own batch");
-        require(block.timestamp < parent.expiryTimestamp, "Batch has expired");
+        require(parent.id != 0, "Batch not exist");
+        require(parent.status == Status.Created, "Batch not available");
+        require(_quantity > 0 && _quantity <= parent.remainingQuantity, "Invalid qty");
+        require(msg.sender != parent.farmer, "Farmer cannot buy");
+        require(block.timestamp < parent.expiryTimestamp, "Batch expired");
 
         uint reqPayment = parent.pricePerKg * _quantity;
-        require(msg.value == reqPayment, "Incorrect payment amount");
+        require(msg.value == reqPayment, "Incorrect payment");
 
         parent.remainingQuantity -= _quantity;
 
@@ -649,11 +649,11 @@ contract SupplyChainV2 is ReentrancyGuard {
         bytes32 _consentHash
     ) external {
         Batch storage batch = batches[_batchId];
-        require(batch.id != 0, "Batch does not exist");
+        require(batch.id != 0, "Batch not exist");
         require(batch.status == Status.Sold || batch.status == Status.Dispatched, "Invalid state");
-        require(msg.sender == batch.buyer, "Only buyer can nominate a trustee");
-        require(_trusteeAddress != address(0), "Trustee address required");
-        require(_consentHash != bytes32(0), "Consent video hash required");
+        require(msg.sender == batch.buyer, "Only buyer");
+        require(_trusteeAddress != address(0), "Invalid address");
+        require(_consentHash != bytes32(0), "Invalid hash");
 
         batch.trusteeAddress = _trusteeAddress;
         batch.trusteeConsentHash = _consentHash;
@@ -666,11 +666,11 @@ contract SupplyChainV2 is ReentrancyGuard {
      */
     function uploadPackingVideo(uint _batchId, bytes32 _video1Hash) external {
         Batch storage batch = batches[_batchId];
-        require(batch.id != 0, "Batch does not exist");
-        require(batch.status == Status.Sold, "Must be in Sold status");
-        require(msg.sender == batch.farmer, "Only farmer can upload packing video");
-        require(batch.video1Hash == bytes32(0), "Video already submitted.");
-        require(_video1Hash != bytes32(0), "Invalid IPFS hash");
+        require(batch.id != 0, "Batch not exist");
+        require(batch.status == Status.Sold, "Must be sold");
+        require(msg.sender == batch.farmer, "Only farmer");
+        require(batch.video1Hash == bytes32(0), "Already submitted");
+        require(_video1Hash != bytes32(0), "Invalid hash");
 
         batch.video1Hash = _video1Hash;
 
@@ -682,11 +682,11 @@ contract SupplyChainV2 is ReentrancyGuard {
      */
     function confirmDispatch(uint _batchId, string memory _trackingId) external {
         Batch storage batch = batches[_batchId];
-        require(batch.id != 0, "Batch does not exist");
-        require(batch.status == Status.Sold, "Must be in Sold status");
-        require(msg.sender == batch.farmer, "Only farmer can confirm dispatch");
-        require(bytes(_trackingId).length > 0, "Tracking ID is required");
-        require(batch.video1Hash != bytes32(0), "Must upload packing video before dispatch");
+        require(batch.id != 0, "Batch not exist");
+        require(batch.status == Status.Sold, "Must be sold");
+        require(msg.sender == batch.farmer, "Only farmer");
+        require(bytes(_trackingId).length > 0, "Invalid tracking ID");
+        require(batch.video1Hash != bytes32(0), "No packing video");
 
         batch.status = Status.Dispatched;
         batch.trackingId = _trackingId;
@@ -704,9 +704,9 @@ contract SupplyChainV2 is ReentrancyGuard {
      */
     function confirmDelivery(uint _batchId, bytes32 _video2Hash) external nonReentrant {
         Batch storage batch = batches[_batchId];
-        require(batch.id != 0, "Batch does not exist");
-        require(batch.status == Status.Dispatched, "Goods not dispatched yet");
-        require(msg.sender == batch.buyer || msg.sender == batch.trusteeAddress, "Only buyer or trustee can confirm delivery");
+        require(batch.id != 0, "Batch not exist");
+        require(batch.status == Status.Dispatched, "Not dispatched");
+        require(msg.sender == batch.buyer || msg.sender == batch.trusteeAddress, "Unauthorized");
 
         batch.status = Status.Confirmed;
 
@@ -729,9 +729,9 @@ contract SupplyChainV2 is ReentrancyGuard {
         totalEarnings[batch.farmer] += (escrow - protocolFee);
 
         (bool s1, ) = payable(batch.farmer).call{value: farmerPayout}("");
-        require(s1, "Farmer payout failed");
+        require(s1, "Failed");
         (bool s2, ) = payable(adminTreasury).call{value: protocolFee}("");
-        require(s2, "Protocol fee transfer failed");
+        require(s2, "Failed");
 
         emit DeliveryConfirmed(_batchId, msg.sender, farmerPayout, _video2Hash);
     }
@@ -745,11 +745,11 @@ contract SupplyChainV2 is ReentrancyGuard {
         bytes32 _video2Hash
     ) external nonReentrant {
         Batch storage batch = batches[_batchId];
-        require(batch.id != 0, "Batch does not exist");
-        require(batch.status == Status.Dispatched, "Goods not dispatched yet");
-        require(msg.sender == batch.buyer || msg.sender == batch.trusteeAddress, "Only buyer or trustee can confirm delivery");
-        require(_acceptedQuantity > 0 && _acceptedQuantity < batch.quantity, "Invalid partial quantity");
-        require(_video2Hash != bytes32(0), "Delivery video hash required");
+        require(batch.id != 0, "Batch not exist");
+        require(batch.status == Status.Dispatched, "Not dispatched");
+        require(msg.sender == batch.buyer || msg.sender == batch.trusteeAddress, "Unauthorized");
+        require(_acceptedQuantity > 0 && _acceptedQuantity < batch.quantity, "Invalid qty");
+        require(_video2Hash != bytes32(0), "Invalid hash");
 
         batch.status = Status.PartialConfirm;
         batch.remainingQuantity = 0;
@@ -768,9 +768,9 @@ contract SupplyChainV2 is ReentrancyGuard {
         totalEarnings[batch.farmer] += farmerPayout;
 
         (bool s1, ) = payable(batch.farmer).call{value: farmerPayout + stakeReturn}("");
-        require(s1, "Farmer payout failed");
+        require(s1, "Failed");
         (bool s2, ) = payable(batch.buyer).call{value: buyerRefund}("");
-        require(s2, "Buyer refund failed");
+        require(s2, "Failed");
 
         emit PartialDeliveryConfirmed(_batchId, _acceptedQuantity, farmerPayout, buyerRefund);
     }
@@ -784,9 +784,9 @@ contract SupplyChainV2 is ReentrancyGuard {
      */
     function refund(uint _batchId) external nonReentrant {
         Batch storage batch = batches[_batchId];
-        require(batch.id != 0, "Batch does not exist");
-        require(batch.status == Status.Sold, "Can only refund from Sold status (pre-dispatch)");
-        require(msg.sender == batch.buyer || msg.sender == batch.farmer, "Not authorized");
+        require(batch.id != 0, "Batch not exist");
+        require(batch.status == Status.Sold, "Must be sold");
+        require(msg.sender == batch.buyer || msg.sender == batch.farmer, "Unauthorized");
 
         address originalBuyer = batch.buyer;
         uint amount = batch.escrowAmount;
@@ -802,14 +802,14 @@ contract SupplyChainV2 is ReentrancyGuard {
         }
 
         (bool s1, ) = payable(originalBuyer).call{value: amount}("");
-        require(s1, "Buyer refund failed");
+        require(s1, "Failed");
 
         // Return stake for root batches
         if (batch.parentId == 0 && batch.stakeAmount > 0) {
             uint stake = batch.stakeAmount;
             batch.stakeAmount = 0;
             (bool s2, ) = payable(batch.farmer).call{value: stake}("");
-            require(s2, "Farmer stake return failed");
+            require(s2, "Failed");
         }
 
         emit Refunded(_batchId, originalBuyer, amount);
@@ -820,10 +820,10 @@ contract SupplyChainV2 is ReentrancyGuard {
      */
     function cancelBatch(uint _batchId) external nonReentrant {
         Batch storage batch = batches[_batchId];
-        require(batch.id != 0, "Batch does not exist");
-        require(batch.parentId == 0, "Only root batches can be cancelled");
-        require(batch.status == Status.Created, "Can only cancel unsold batches");
-        require(msg.sender == batch.farmer, "Only farmer can cancel");
+        require(batch.id != 0, "Batch not exist");
+        require(batch.parentId == 0, "Not root");
+        require(batch.status == Status.Created, "Batch not available");
+        require(msg.sender == batch.farmer, "Only farmer");
 
         batch.status = Status.Cancelled;
         batch.remainingQuantity = 0;
@@ -832,7 +832,7 @@ contract SupplyChainV2 is ReentrancyGuard {
         batch.stakeAmount = 0;
 
         (bool s1, ) = payable(batch.farmer).call{value: stake}("");
-        require(s1, "Farmer stake return failed");
+        require(s1, "Failed");
 
         emit BatchCancelled(_batchId, batch.farmer);
     }
@@ -847,13 +847,13 @@ contract SupplyChainV2 is ReentrancyGuard {
      */
     function reportSpoilt(uint _batchId, bytes32 _video2Hash) external payable nonReentrant {
         Batch storage batch = batches[_batchId];
-        require(batch.id != 0, "Batch does not exist");
-        require(batch.status == Status.Dispatched, "Must be in Dispatched status");
-        require(msg.sender == batch.buyer || msg.sender == batch.farmer, "Not authorized");
+        require(batch.id != 0, "Batch not exist");
+        require(batch.status == Status.Dispatched, "Not dispatched");
+        require(msg.sender == batch.buyer || msg.sender == batch.farmer, "Unauthorized");
 
         // ── AUTO-RESOLVE: No Video 1 = Automatic Buyer Wins ──────────────────────
         if (batch.video1Hash == bytes32(0)) {
-            require(msg.value == 0, "No bond needed for auto-resolve (no video = auto buyer wins)");
+            require(msg.value == 0, "Do not send ETH");
             batch.status = Status.BuyerWins;
 
             uint escrow = batch.escrowAmount;
@@ -863,12 +863,12 @@ contract SupplyChainV2 is ReentrancyGuard {
 
             // Refund buyer
             (bool s1, ) = payable(batch.buyer).call{value: escrow}("");
-            require(s1, "Buyer refund failed");
+            require(s1, "Failed");
 
             // Farmer's stake to Admin (as penalty for no evidence)
             if (stake > 0) {
                 (bool s2, ) = payable(adminTreasury).call{value: stake}("");
-                require(s2, "Stake transfer failed");
+                require(s2, "Failed");
             }
 
             emit AutoResolvedNoBuyerWins(_batchId, batch.buyer, "No packing video submitted by farmer");
@@ -877,8 +877,8 @@ contract SupplyChainV2 is ReentrancyGuard {
 
         // ── FULL DISPUTE: Both videos exist, requires bond ────────────────────────
         uint bondRequired = _calculateDisputeBond(batch.pricePerKg * batch.quantity);
-        require(msg.value == bondRequired, "Incorrect dispute bond amount");
-        require(arbitratorPool.length >= 7, "Not enough arbitrators in pool");
+        require(msg.value == bondRequired, "Incorrect payment");
+        require(arbitratorPool.length >= 7, "Not enough arbs");
 
         disputeCount++;
 
@@ -904,11 +904,11 @@ contract SupplyChainV2 is ReentrancyGuard {
      */
     function commitArbitratorVote(uint _disputeId, bytes32 _commitHash) external onlyActiveArbitrator nonReentrant {
         Dispute storage dispute = disputes[_disputeId];
-        require(!dispute.resolved, "Dispute already resolved");
-        require(!hasCommittedOnDispute[_disputeId][msg.sender], "Already committed on this dispute");
+        require(!dispute.resolved, "Dispute resolved");
+        require(!hasCommittedOnDispute[_disputeId][msg.sender], "Already committed");
         
         address[] storage jury = disputeCommittedArbitrators[_disputeId];
-        require(jury.length < 7, "Jury pool of 7 already filled");
+        require(jury.length < 7, "Jury filled");
 
         hasCommittedOnDispute[_disputeId][msg.sender] = true;
         arbitratorCommits[_disputeId][msg.sender] = _commitHash;
@@ -923,13 +923,13 @@ contract SupplyChainV2 is ReentrancyGuard {
      */
     function revealArbitratorVote(uint _disputeId, uint8 _vote, uint256 _salt) external onlyActiveArbitrator nonReentrant {
         Dispute storage dispute = disputes[_disputeId];
-        require(!dispute.resolved, "Dispute already resolved");
-        require(hasCommittedOnDispute[_disputeId][msg.sender], "Did not commit a vote for this dispute");
-        require(!hasRevealedOnDispute[_disputeId][msg.sender], "Already revealed vote");
-        require(_vote == 1 || _vote == 2 || _vote == 3, "Invalid vote option");
+        require(!dispute.resolved, "Dispute resolved");
+        require(hasCommittedOnDispute[_disputeId][msg.sender], "Did not commit");
+        require(!hasRevealedOnDispute[_disputeId][msg.sender], "Already revealed");
+        require(_vote == 1 || _vote == 2 || _vote == 3, "Invalid vote");
 
         bytes32 expectedHash = keccak256(abi.encodePacked(_vote, _salt));
-        require(arbitratorCommits[_disputeId][msg.sender] == expectedHash, "Invalid commit reveal parameters");
+        require(arbitratorCommits[_disputeId][msg.sender] == expectedHash, "Invalid commit");
 
         hasRevealedOnDispute[_disputeId][msg.sender] = true;
         hasVotedOnDispute[_disputeId][msg.sender] = true;
@@ -954,10 +954,10 @@ contract SupplyChainV2 is ReentrancyGuard {
      */
     function finalizeDispute(uint _disputeId) external nonReentrant {
         Dispute storage dispute = disputes[_disputeId];
-        require(!dispute.resolved, "Already resolved");
+        require(!dispute.resolved, "Dispute resolved");
         require(
             dispute.votesForFarmer >= 3 || dispute.votesForBuyer >= 3 || dispute.votesForNeither >= 3,
-            "No majority reached yet - 3 votes required"
+            "No majority"
         );
         _finalizeDisputeInternal(_disputeId);
     }
@@ -989,12 +989,12 @@ contract SupplyChainV2 is ReentrancyGuard {
             payPerWinner = bond / 3;
             totalEarnings[batch.farmer] += escrow;
             (bool s1, ) = payable(batch.farmer).call{value: escrow + stake}("");
-            require(s1, "Farmer payout failed");
+            require(s1, "Failed");
         } else if (winningOption == 2) {
             batch.status = Status.BuyerWins;
             payPerWinner = stake / 3;
             (bool s1, ) = payable(batch.buyer).call{value: escrow + bond}("");
-            require(s1, "Buyer refund failed");
+            require(s1, "Failed");
         } else if (winningOption == 3) {
             batch.status = Status.FarmerWins; // Treat status as FarmerWins
             
@@ -1004,14 +1004,14 @@ contract SupplyChainV2 is ReentrancyGuard {
 
             totalEarnings[batch.farmer] += escrow;
             (bool s1, ) = payable(batch.farmer).call{value: escrow + payPerWinner}("");
-            require(s1, "Farmer payout failed");
+            require(s1, "Failed");
 
             (bool s2, ) = payable(batch.buyer).call{value: payPerWinner}("");
-            require(s2, "Buyer refund failed");
+            require(s2, "Failed");
 
             if (remainder > 0) {
                 (bool s3, ) = payable(adminTreasury).call{value: remainder}("");
-                require(s3, "Admin remainder payout failed");
+                require(s3, "Failed");
             }
         }
 
@@ -1051,10 +1051,10 @@ contract SupplyChainV2 is ReentrancyGuard {
      */
     function claimArbitratorRewards() external nonReentrant {
         uint reward = claimableArbitratorRewards[msg.sender];
-        require(reward > 0, "No rewards to claim");
+        require(reward > 0, "No rewards");
         claimableArbitratorRewards[msg.sender] = 0;
         (bool success, ) = payable(msg.sender).call{value: reward}("");
-        require(success, "Reward transfer failed");
+        require(success, "Failed");
     }
 
     /**
@@ -1062,12 +1062,12 @@ contract SupplyChainV2 is ReentrancyGuard {
      */
     function claimAbandoned(uint _batchId) external nonReentrant {
         Batch storage batch = batches[_batchId];
-        require(batch.id != 0, "Batch does not exist");
-        require(batch.status == Status.Dispatched, "Must be in Dispatched status");
-        require(msg.sender == batch.farmer, "Only farmer can claim abandoned batch");
+        require(batch.id != 0, "Batch not exist");
+        require(batch.status == Status.Dispatched, "Not dispatched");
+        require(msg.sender == batch.farmer, "Only farmer");
         require(
             block.timestamp > batch.dispatchTimestamp + ABANDON_GRACE_PERIOD,
-            "Grace period has not expired yet"
+            "Grace period not expired"
         );
 
         batch.status = Status.Abandoned;
@@ -1086,7 +1086,7 @@ contract SupplyChainV2 is ReentrancyGuard {
         totalEarnings[batch.farmer] += escrow;
 
         (bool s1, ) = payable(batch.farmer).call{value: escrow + stakeReturn}("");
-        require(s1, "Farmer payout failed");
+        require(s1, "Failed");
 
         emit BatchAbandoned(_batchId, batch.farmer, escrow);
     }

@@ -348,23 +348,11 @@
         {
           "indexed": true,
           "internalType": "uint256",
-          "name": "disputeId",
+          "name": "requestId",
           "type": "uint256"
-        },
-        {
-          "indexed": false,
-          "internalType": "bool",
-          "name": "farmerWon",
-          "type": "bool"
-        },
-        {
-          "indexed": false,
-          "internalType": "string",
-          "name": "reason",
-          "type": "string"
         }
       ],
-      "name": "DisputeResolved",
+      "name": "FiatConversionCancelled",
       "type": "event"
     },
     {
@@ -372,12 +360,55 @@
       "inputs": [
         {
           "indexed": true,
-          "internalType": "address",
-          "name": "farmer",
-          "type": "address"
+          "internalType": "uint256",
+          "name": "requestId",
+          "type": "uint256"
         }
       ],
-      "name": "FarmerSponsored",
+      "name": "FiatConversionFulfilled",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "requestId",
+          "type": "uint256"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "user",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "amountINR",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "enum SupplyChainV2.ConversionDirection",
+          "name": "direction",
+          "type": "uint8"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "lockedPrice",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "requiredEth",
+          "type": "uint256"
+        }
+      ],
+      "name": "FiatConversionRequested",
       "type": "event"
     },
     {
@@ -472,9 +503,9 @@
         },
         {
           "indexed": false,
-          "internalType": "string",
-          "name": "trusteePhone",
-          "type": "string"
+          "internalType": "address",
+          "name": "trusteeAddress",
+          "type": "address"
         }
       ],
       "name": "TrusteeNominated",
@@ -483,6 +514,19 @@
     {
       "inputs": [],
       "name": "ABANDON_GRACE_PERIOD",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "ARBITRATOR_BOND",
       "outputs": [
         {
           "internalType": "uint256",
@@ -521,6 +565,19 @@
     },
     {
       "inputs": [],
+      "name": "CONVERSION_TIMEOUT",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
       "name": "DISPUTE_BOND_PERCENT",
       "outputs": [
         {
@@ -535,6 +592,19 @@
     {
       "inputs": [],
       "name": "MAX_EXPIRY_DURATION",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "MAX_POOL_SIZE",
       "outputs": [
         {
           "internalType": "uint256",
@@ -646,7 +716,7 @@
       ],
       "name": "addArbitrator",
       "outputs": [],
-      "stateMutability": "nonpayable",
+      "stateMutability": "payable",
       "type": "function"
     },
     {
@@ -720,7 +790,7 @@
       ],
       "name": "applyAsArbitrator",
       "outputs": [],
-      "stateMutability": "nonpayable",
+      "stateMutability": "payable",
       "type": "function"
     },
     {
@@ -732,6 +802,30 @@
         }
       ],
       "name": "arbitratorApplications",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        },
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "name": "arbitratorCommits",
       "outputs": [
         {
           "internalType": "bytes32",
@@ -774,12 +868,12 @@
           "type": "address"
         }
       ],
-      "name": "arbitratorVoteForFarmer",
+      "name": "arbitratorVotes",
       "outputs": [
         {
-          "internalType": "bool",
+          "internalType": "uint8",
           "name": "",
-          "type": "bool"
+          "type": "uint8"
         }
       ],
       "stateMutability": "view",
@@ -928,14 +1022,19 @@
           "type": "string"
         },
         {
-          "internalType": "string",
-          "name": "trusteePhone",
-          "type": "string"
+          "internalType": "address",
+          "name": "trusteeAddress",
+          "type": "address"
         },
         {
           "internalType": "bytes32",
           "name": "trusteeConsentHash",
           "type": "bytes32"
+        },
+        {
+          "internalType": "uint256",
+          "name": "dispatchTimestamp",
+          "type": "uint256"
         }
       ],
       "stateMutability": "view",
@@ -996,11 +1095,68 @@
       "inputs": [
         {
           "internalType": "uint256",
+          "name": "_requestId",
+          "type": "uint256"
+        }
+      ],
+      "name": "cancelPendingConversion",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
           "name": "_batchId",
           "type": "uint256"
         }
       ],
       "name": "claimAbandoned",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "claimArbitratorRewards",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "name": "claimableArbitratorRewards",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_disputeId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "_commitHash",
+          "type": "bytes32"
+        }
+      ],
+      "name": "commitArbitratorVote",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
@@ -1080,6 +1236,30 @@
       "type": "function"
     },
     {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "name": "disputeCommittedArbitrators",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
       "inputs": [],
       "name": "disputeCount",
       "outputs": [
@@ -1128,6 +1308,11 @@
           "type": "uint256"
         },
         {
+          "internalType": "uint256",
+          "name": "votesForNeither",
+          "type": "uint256"
+        },
+        {
           "internalType": "bool",
           "name": "resolved",
           "type": "bool"
@@ -1145,6 +1330,60 @@
       "inputs": [
         {
           "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "name": "fiatRequests",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "id",
+          "type": "uint256"
+        },
+        {
+          "internalType": "address",
+          "name": "user",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "amountINR",
+          "type": "uint256"
+        },
+        {
+          "internalType": "enum SupplyChainV2.ConversionDirection",
+          "name": "direction",
+          "type": "uint8"
+        },
+        {
+          "internalType": "uint256",
+          "name": "lockedPrice",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "requestTimestamp",
+          "type": "uint256"
+        },
+        {
+          "internalType": "enum SupplyChainV2.RequestStatus",
+          "name": "status",
+          "type": "uint8"
+        },
+        {
+          "internalType": "uint256",
+          "name": "requiredEth",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
           "name": "_disputeId",
           "type": "uint256"
         }
@@ -1152,6 +1391,19 @@
       "name": "finalizeDispute",
       "outputs": [],
       "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_requestId",
+          "type": "uint256"
+        }
+      ],
+      "name": "fulfillConversion",
+      "outputs": [],
+      "stateMutability": "payable",
       "type": "function"
     },
     {
@@ -1237,9 +1489,9 @@
       "name": "getDisputeArbitrators",
       "outputs": [
         {
-          "internalType": "address[5]",
+          "internalType": "address[]",
           "name": "",
-          "type": "address[5]"
+          "type": "address[]"
         }
       ],
       "stateMutability": "view",
@@ -1253,6 +1505,54 @@
           "internalType": "int256",
           "name": "",
           "type": "int256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        },
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "name": "hasCommittedOnDispute",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        },
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "name": "hasRevealedOnDispute",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
         }
       ],
       "stateMutability": "view",
@@ -1314,7 +1614,7 @@
           "type": "address"
         }
       ],
-      "name": "isAdminSponsored",
+      "name": "isArbitrator",
       "outputs": [
         {
           "internalType": "bool",
@@ -1326,19 +1626,13 @@
       "type": "function"
     },
     {
-      "inputs": [
-        {
-          "internalType": "address",
-          "name": "",
-          "type": "address"
-        }
-      ],
-      "name": "isArbitrator",
+      "inputs": [],
+      "name": "nextRequestId",
       "outputs": [
         {
-          "internalType": "bool",
+          "internalType": "uint256",
           "name": "",
-          "type": "bool"
+          "type": "uint256"
         }
       ],
       "stateMutability": "view",
@@ -1352,9 +1646,9 @@
           "type": "uint256"
         },
         {
-          "internalType": "string",
-          "name": "_trusteePhone",
-          "type": "string"
+          "internalType": "address",
+          "name": "_trusteeAddress",
+          "type": "address"
         },
         {
           "internalType": "bytes32",
@@ -1388,6 +1682,25 @@
       "name": "partialConfirm",
       "outputs": [],
       "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "name": "pendingRequestPerUser",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
       "type": "function"
     },
     {
@@ -1455,12 +1768,17 @@
     {
       "inputs": [
         {
-          "internalType": "address",
-          "name": "_farmer",
-          "type": "address"
+          "internalType": "uint256",
+          "name": "_amountINR",
+          "type": "uint256"
+        },
+        {
+          "internalType": "enum SupplyChainV2.ConversionDirection",
+          "name": "_direction",
+          "type": "uint8"
         }
       ],
-      "name": "sponsorFarmer",
+      "name": "requestFiatConversion",
       "outputs": [],
       "stateMutability": "payable",
       "type": "function"
@@ -1473,12 +1791,30 @@
           "type": "uint256"
         },
         {
-          "internalType": "bool",
-          "name": "_votesForFarmer",
-          "type": "bool"
+          "internalType": "uint8",
+          "name": "_vote",
+          "type": "uint8"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_salt",
+          "type": "uint256"
         }
       ],
-      "name": "submitArbitratorVote",
+      "name": "revealArbitratorVote",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_newRate",
+          "type": "uint256"
+        }
+      ],
+      "name": "setUsdToInrRate",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
@@ -1521,6 +1857,19 @@
       "type": "function"
     },
     {
+      "inputs": [],
+      "name": "usdToInrRate",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
       "inputs": [
         {
           "internalType": "address",
@@ -1534,6 +1883,13 @@
         }
       ],
       "name": "voteOnApplicant",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "withdrawArbitrator",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
