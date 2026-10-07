@@ -46,22 +46,44 @@ flowchart TD
 Traditional Web3 onboarding is a major hurdle. AgroChainMart incorporates **non-custodial account abstraction**:
 * **Phone + PIN Registration:** No MetaMask or wallet extension is required. Users enter their phone number and receive a secure OTP via Twilio SMS.
 * **Non-Custodial Private Keys:** Cryptographic keys are generated locally in the browser, encrypted with the user's secret PIN, and stored in localStorage.
+<<<<<<< HEAD
 * **The AgriVault Cloud Backup [DEPRECATED]:** Previously supported OTP-verified recovery of PIN-encrypted keys on the backend. This has been deprecated in favor of modern non-custodial social login and Multi-Party Computation (MPC) recovery (e.g., Privy or Web3Auth) to ensure zero database dependencies and eliminate XSS/offline brute-force risks.
+=======
+* **The AgriVault Cloud Backup [DEPRECATED]:** Previously supported OTP-verified recovery of PIN-encrypted keys on the backend. This has been deprecated to ensure zero database dependencies and eliminate XSS/offline brute-force risks.
+>>>>>>> ab87665 (matched readme with existing features)
 * **Agri-Gas ATM & AgroPaymaster:** Instead of forcing users to acquire and hold ETH for gas fees, transactions are compiled as ERC-4337 `UserOperations`. The Flask server acts as a paymaster relayer. It validates operations and signs off via the custom `AgroPaymaster` contract, sponsoring the gas fees to provide a gasless user experience.
 
 ### ⚖️ Smart Escrow & IPFS Evidence Pinning
 To ensure quality control and delivery verification:
+<<<<<<< HEAD
 1. **Crop Listing:** Farmers list crop batches with quantity, location, price, and expiry. Listing a root harvest requires a 5% security stake to prevent spam listings (which can be sponsored by the Admin for first-time farmers).
+=======
+1. **Crop Listing:** Farmers list crop batches with quantity, location, price, and expiry. Listing a root harvest requires a 5% security stake to prevent spam listings.
+>>>>>>> ab87665 (matched readme with existing features)
 2. **Purchase:** The buyer purchases a batch, locking the purchase price in the `SupplyChainV2` contract's escrow.
 3. **One-Write Packing Video (Video 1):** Before dispatch, the farmer must upload a crop-packing video. The file is pinned to IPFS via Pinata, and its IPFS CID hash is written immutably onto the smart contract listing.
 4. **Dispatch:** The farmer records delivery tracking details (carrier reference) on-chain, changing the batch status to `Dispatched`.
 5. **OTP delivery & Confirm:** Upon delivery, the buyer or their nominated trustee (via `trusteeAddress`) inspects the goods. The buyer or trustee then invokes `confirmDelivery` (submitting a delivery video hash, Video 2), which releases the escrow funds to the farmer and returns the farmer's listing stake. A **partial release** is also supported if only a portion of the batch meets requirements.
 
+<<<<<<< HEAD
 ### 🏛️ The Judicial Layer: Hybrid Consensus
 Disputes are resolved through a decentralized court consisting of up to 5 arbitrators from a verified pool using a **first-to-vote commit-reveal** mechanism:
 * **Arbitrator Pool & APMC Credentials:** Anyone can apply to become an arbitrator by staking a secure initial bond (1 ETH) and submitting agricultural credentials. The pool is capped at a maximum of `10` active arbitrators. Existing active arbitrators or the admin vote to approve applicants.
 * **Slashing & Willing Withdrawal:** If an arbitrator's rating falls below 3.0, they are disqualified and their entire 1 ETH bond is slashed to the treasury. If they willingly withdraw, their bond is returned proportionally based on their rating: 100% refund for rating >= 5.0, 0% refund for rating <= 3.0, and linear interpolation in between.
 * **Dispute Escalation:** If crops arrive spoiled, the buyer locks a dispute bond and reports the issue. If the farmer failed to upload a packing video (Video 1), the dispute auto-resolves in the buyer's favor. If Video 1 is present, a dispute is created and the first 5 active arbitrators to submit a cryptographic commit are locked in as the jury.
+=======
+### 💱 Chainlink Fiat On/Off-Ramp Protocol
+To bridge traditional fiat payments with Web3 liquidity:
+* **Real-Time Price Feed Oracles:** Integrates Chainlink's `AggregatorV3Interface` (ETH/USD) on Sepolia combined with an admin-configurable USD-to-INR conversion rate.
+* **On-Ramp & Off-Ramp Requests:** Users lock INR conversion requests (`requestFiatConversion`) with a 15-minute price freeze window to either purchase ETH (On-Ramp) or convert ETH earnings to INR (Off-Ramp).
+* **Settlement & Cancellation:** Requests are fulfilled by the Admin treasury upon verifying off-chain fiat settlement (`fulfillConversion`) or can be cancelled by the user after expiration (`cancelPendingConversion`).
+
+### 🏛️ The Judicial Layer: Hybrid Consensus
+Disputes are resolved through a decentralized court consisting of **7 arbitrators** (selected from a verified pool of at least 7 active arbitrators) using a **first-to-vote commit-reveal** mechanism:
+* **Arbitrator Pool & APMC Credentials:** Anyone can apply to become an arbitrator by staking a secure initial bond (1 ETH) and submitting agricultural credentials. The pool is capped at a maximum of `15` active arbitrators. A minimum of `7` active arbitrators in the pool is required to initiate a dispute. Existing active arbitrators or the admin vote to approve applicants.
+* **Slashing & Willing Withdrawal:** If an arbitrator's rating falls below 3.0, they are disqualified and their entire 1 ETH bond is slashed to the treasury. If they willingly withdraw, their bond is returned proportionally based on their rating: 100% refund for rating >= 5.0, 0% refund for rating <= 3.0, and linear interpolation in between.
+* **Dispute Escalation:** If crops arrive spoiled, the buyer locks a dispute bond and reports the issue (requiring at least 7 active arbitrators in the pool). If the farmer failed to upload a packing video (Video 1), the dispute auto-resolves in the buyer's favor. If Video 1 is present, a dispute is created and the first 7 active arbitrators to submit a cryptographic commit are locked in as the jury.
+>>>>>>> ab87665 (matched readme with existing features)
 * **Arbitration Voting (Commit-Reveal):** Arbitrators review Video 1 (packing) and Video 2 (delivery unboxing) hosted on IPFS. They cast blind votes by first committing `keccak256(abi.encodePacked(vote, salt))` and then revealing them, preventing herding and mempool vote-stealing.
 * **First-to-3 Majority Finality:** The dispute resolves immediately once a side reaches 3 revealed votes.
 * **Staking Rewards & Penalties:** 
@@ -126,9 +148,22 @@ The backend runs a Flask server on port `5000` to support Twilio OTP, AgriVault 
   * **Payload:** `{ "phone": "+91XXXXXXXXXX", "code": "XXXXXX" }`
 
 ### 💾 Cloud AgriVault Sync [DEPRECATED]
+<<<<<<< HEAD
 * **`POST /api/wallet/save`** - **Returned status: 410 Gone** (deprecated in favor of Privy/Web3Auth MPC).
 * **`POST /api/wallet/recover`** - **Returned status: 410 Gone** (deprecated).
 
+=======
+* **`POST /api/wallet/save`** - **Returned status: 410 Gone** (deprecated).
+* **`POST /api/wallet/recover`** - **Returned status: 410 Gone** (deprecated).
+
+### 💳 Merchant Banking & Off-Ramp
+* **`GET /api/bank/balance/<phone>`**
+  * Retrieves bank ledger balance and transaction history.
+* **`POST /api/bank/withdraw`**
+  * Verifies on-chain off-ramp transactions and credits the user's INR balance.
+  * **Payload:** `{ "phone": "+91XXXXXXXXXX", "amount_inr": 1000, "tx_hash": "0x..." }`
+
+>>>>>>> ab87665 (matched readme with existing features)
 ### ⛽ ERC-4337 Paymaster Relayer
 * **`POST /api/paymaster/sign`**
   * Sponsoring check. Generates cryptographic signature for gasless `UserOperation` if valid.
